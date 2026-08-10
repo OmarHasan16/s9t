@@ -31,5 +31,5 @@ type CortezaCRMGateway interface {
 	GetContact(ctx context.Context, tenantID types.TenantID, contactID string) (*ContactProjection, error)
 	UpdateContactStage(ctx context.Context, tenantID types.TenantID, contactID string, stage string) error
 	GetDeal(ctx context.Context, tenantID types.TenantID, dealID string) (*DealProjection, error)
-	UpdateDealStage(ctx context.Context, tenantID types.TenantID, dealID string, targetStage string, expectedVersion int) error
+	UpdateDealStage(ctx context.Context, tenantID types.TenantID, dealID string, targetStage string, expectedVersion int) (int, error)
 }

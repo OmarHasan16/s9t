@@ -16,6 +16,7 @@ type DBTransactionManager interface {
 	MarkEventProcessed(ctx context.Context, eventID string) error
 	
 	// Command Operation Lease and Reconciliation
-	AcquireCommandLease(ctx context.Context, idempotencyKey string, commandHash string) (bool, error)
+	AcquireCommandLease(ctx context.Context, idempotencyKey string, commandHash string) (string, string, error) // Returns (operationID, status, error)
+	UpdateOperationStatus(ctx context.Context, operationID string, status string, lastError string) error
 	RequireReconciliation(ctx context.Context, tenantID types.TenantID, aggregateID string, targetStage string) error
 }
