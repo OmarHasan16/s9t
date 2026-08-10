@@ -8,6 +8,7 @@ import (
 // DBTransactionManager defines boundaries for local database operations and outbox saves
 type DBTransactionManager interface {
 	RunInTransaction(ctx context.Context, fn func(txCtx context.Context) error) error
+	SetTenantContext(ctx context.Context, tenantID types.TenantID) error
 	SaveOutboxEvent(ctx context.Context, event outbox.Event) error
 	
 	// Idempotency tracking methods for webhook processors
