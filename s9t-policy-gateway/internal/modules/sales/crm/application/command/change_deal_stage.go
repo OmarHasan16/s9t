@@ -2,26 +2,31 @@ package command
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"s9t.os/internal/app/http/middleware"
 	"s9t.os/internal/modules/sales/crm/application/ports"
 	"s9t.os/internal/modules/sales/crm/domain/valueobject"
 	"s9t.os/internal/modules/sales/crm/policy"
 	"s9t.os/internal/platform/outbox"
-	"s9t.os/internal/platform/types"
 )
 
-var ErrVersionMismatch = errors.New("optimistic lock failed: deal version is stale")
+var (
+	ErrVersionMismatch      = errors.New("optimistic lock failed: deal version is stale")
+	ErrUnauthorized         = errors.New("unauthorized: missing required context")
+	ErrCommandLocked        = errors.New("command is already being processed or completed")
+	ErrDualWriteFailed      = errors.New("corteza update succeeded but local outbox failed: requires reconciliation")
+)
 
 type ChangeDealStageCommand struct {
 	DealID          string
-	TenantID        types.TenantID
 	ExpectedVersion int
 	TargetStage     string
-	ActorID         types.ActorID
 	CorrelationID   string
 	IdempotencyKey  string
 }
@@ -36,19 +41,45 @@ func NewChangeDealStageHandler(p *policy.DealPolicy, gw ports.CortezaCRMGateway,
 	return &ChangeDealStageHandler{policy: p, crmGateway: gw, dbTransaction: tx}
 }
 
+func hashCommand(cmd ChangeDealStageCommand) string {
+	b, _ := json.Marshal(cmd)
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+
 func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStageCommand) error {
-	// 1. Fetch current projection from Corteza
-	deal, err := h.crmGateway.GetDeal(ctx, cmd.TenantID, cmd.DealID)
+	// 1. Context Verification
+	tenantID, ok := middleware.TenantIDFromContext(ctx)
+	if !ok || tenantID == "" {
+		return ErrUnauthorized
+	}
+	actorID, ok := middleware.ActorIDFromContext(ctx)
+	if !ok || actorID == "" {
+		return ErrUnauthorized
+	}
+
+	// 2. Idempotency & Operation Ledger
+	cmdHash := hashCommand(cmd)
+	acquired, err := h.dbTransaction.AcquireCommandLease(ctx, cmd.IdempotencyKey, cmdHash)
+	if err != nil {
+		return err // e.g. Hash conflict
+	}
+	if !acquired {
+		return ErrCommandLocked // Already processed or processing
+	}
+
+	// 3. Fetch current projection from Corteza
+	deal, err := h.crmGateway.GetDeal(ctx, tenantID, cmd.DealID)
 	if err != nil {
 		return err
 	}
 
-	// 2. Optimistic Locking / Version Check
+	// 4. Optimistic Locking / Version Check
 	if deal.RecordVersion != cmd.ExpectedVersion {
 		return ErrVersionMismatch
 	}
 
-	// 3. Pure Policy Validation (No side-effects)
+	// 5. Pure Policy Validation (No side-effects)
 	if err := h.policy.CanTransition(deal.Stage, cmd.TargetStage); err != nil {
 		return err
 	}
@@ -61,14 +92,13 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 		}
 	}
 
-	// 4. EXTERNAL API CALL: Update Corteza FIRST (Non-transactional boundary)
-	err = h.crmGateway.UpdateDealStage(ctx, cmd.TenantID, cmd.DealID, cmd.TargetStage, cmd.ExpectedVersion)
+	// 6. EXTERNAL API CALL: Update Corteza FIRST (Non-transactional boundary)
+	err = h.crmGateway.UpdateDealStage(ctx, tenantID, cmd.DealID, cmd.TargetStage, cmd.ExpectedVersion)
 	if err != nil {
-		// If Corteza rejects (e.g. concurrent mutation), we abort. No local DB pollution.
-		return err
+		return err // External system rejected or failed. Safe to abort.
 	}
 
-	// 5. Determine Specific Domain Event
+	// 7. Determine Specific Domain Event
 	eventType := "crm.deal.stage_changed"
 	if cmd.TargetStage == policy.DealStageWon {
 		eventType = "crm.deal.won"
@@ -76,29 +106,25 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 		eventType = "crm.deal.lost"
 	}
 
-	eventPayload, err := json.Marshal(map[string]interface{}{
+	eventPayload, _ := json.Marshal(map[string]interface{}{
 		"deal_id":        cmd.DealID,
 		"old_stage":      deal.Stage,
 		"new_stage":      cmd.TargetStage,
 		"amount_minor":   deal.AmountMinor,
 		"currency":       deal.Currency,
-		"actor_id":       cmd.ActorID,
+		"actor_id":       actorID,
 		"correlation_id": cmd.CorrelationID,
 	})
-	if err != nil {
-		return err // Should realistically never happen on map[string]interface{}
-	}
 
-	// 6. LOCAL DB TRANSACTION: Write Intent/Outbox
-	return h.dbTransaction.RunInTransaction(ctx, func(txCtx context.Context) error {
-		// Enforce Tenant Context
-		if err := h.dbTransaction.SetTenantContext(txCtx, cmd.TenantID); err != nil {
+	// 8. LOCAL DB TRANSACTION: Write Intent/Outbox
+	err = h.dbTransaction.RunInTransaction(ctx, func(txCtx context.Context) error {
+		if err := h.dbTransaction.SetTenantContext(txCtx, tenantID); err != nil {
 			return err
 		}
 
 		event := outbox.Event{
-			ID:           uuid.New().String(), // In real implementation: inject ID generator
-			TenantID:     string(cmd.TenantID),
+			ID:           uuid.New().String(),
+			TenantID:     string(tenantID),
 			EventType:    eventType,
 			AggregateID:  cmd.DealID,
 			Payload:      eventPayload,
@@ -110,4 +136,13 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 
 		return h.dbTransaction.SaveOutboxEvent(txCtx, event)
 	})
+
+	// 9. Dual-Write Reconciliation Catch
+	if err != nil {
+		// Corteza succeeded, but local DB failed. We must reconcile.
+		_ = h.dbTransaction.RequireReconciliation(ctx, tenantID, cmd.DealID, cmd.TargetStage)
+		return ErrDualWriteFailed
+	}
+
+	return nil
 }

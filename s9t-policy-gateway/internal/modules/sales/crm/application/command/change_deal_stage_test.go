@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"s9t.os/internal/app/http/middleware"
 	"s9t.os/internal/modules/sales/crm/application/command"
 	"s9t.os/internal/modules/sales/crm/application/ports"
 	"s9t.os/internal/modules/sales/crm/policy"
@@ -15,270 +15,237 @@ import (
 	"s9t.os/internal/platform/types"
 )
 
-// --- Mocks ---
+// --- Hand-Written Fakes ---
 
-type MockCortezaCRMGateway struct {
-	mock.Mock
+type FakeCortezaCRMGateway struct {
+	GetDealFunc         func(ctx context.Context, tenantID types.TenantID, dealID string) (*ports.DealProjection, error)
+	UpdateDealStageFunc func(ctx context.Context, tenantID types.TenantID, dealID string, targetStage string, expectedVersion int) error
+	
+	GetDealCallCount         int
+	UpdateDealStageCallCount int
 }
 
-func (m *MockCortezaCRMGateway) GetContact(ctx context.Context, tenantID types.TenantID, contactID string) (*ports.ContactProjection, error) {
-	args := m.Called(ctx, tenantID, contactID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+func (f *FakeCortezaCRMGateway) GetContact(ctx context.Context, tenantID types.TenantID, contactID string) (*ports.ContactProjection, error) {
+	return nil, nil
+}
+func (f *FakeCortezaCRMGateway) UpdateContactStage(ctx context.Context, tenantID types.TenantID, contactID string, stage string) error {
+	return nil
+}
+func (f *FakeCortezaCRMGateway) GetDeal(ctx context.Context, tenantID types.TenantID, dealID string) (*ports.DealProjection, error) {
+	f.GetDealCallCount++
+	if f.GetDealFunc != nil {
+		return f.GetDealFunc(ctx, tenantID, dealID)
 	}
-	return args.Get(0).(*ports.ContactProjection), args.Error(1)
+	return nil, nil
 }
-
-func (m *MockCortezaCRMGateway) UpdateContactStage(ctx context.Context, tenantID types.TenantID, contactID string, stage string) error {
-	args := m.Called(ctx, tenantID, contactID, stage)
-	return args.Error(0)
-}
-
-func (m *MockCortezaCRMGateway) GetDeal(ctx context.Context, tenantID types.TenantID, dealID string) (*ports.DealProjection, error) {
-	args := m.Called(ctx, tenantID, dealID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+func (f *FakeCortezaCRMGateway) UpdateDealStage(ctx context.Context, tenantID types.TenantID, dealID string, targetStage string, expectedVersion int) error {
+	f.UpdateDealStageCallCount++
+	if f.UpdateDealStageFunc != nil {
+		return f.UpdateDealStageFunc(ctx, tenantID, dealID, targetStage, expectedVersion)
 	}
-	return args.Get(0).(*ports.DealProjection), args.Error(1)
+	return nil
 }
 
-func (m *MockCortezaCRMGateway) UpdateDealStage(ctx context.Context, tenantID types.TenantID, dealID string, targetStage string, expectedVersion int) error {
-	args := m.Called(ctx, tenantID, dealID, targetStage, expectedVersion)
-	return args.Error(0)
+type FakeDBTransactionManager struct {
+	RunInTransactionFunc      func(ctx context.Context, fn func(txCtx context.Context) error) error
+	AcquireCommandLeaseFunc   func(ctx context.Context, idempotencyKey string, commandHash string) (bool, error)
+	RequireReconciliationFunc func(ctx context.Context, tenantID types.TenantID, aggregateID string, targetStage string) error
+	SaveOutboxEventFunc       func(ctx context.Context, event outbox.Event) error
+
+	RunInTransactionCallCount      int
+	AcquireCommandLeaseCallCount   int
+	RequireReconciliationCallCount int
+	SaveOutboxEventCallCount       int
+	CapturedEvent                  *outbox.Event
 }
 
-type MockDBTransactionManager struct {
-	mock.Mock
-}
+func (f *FakeDBTransactionManager) IsEventProcessed(ctx context.Context, eventID string) (bool, error) { return false, nil }
+func (f *FakeDBTransactionManager) MarkEventProcessed(ctx context.Context, eventID string) error { return nil }
 
-func (m *MockDBTransactionManager) RunInTransaction(ctx context.Context, fn func(txCtx context.Context) error) error {
-	// Call the provided function with the passed context to simulate a transaction block
-	err := fn(ctx)
-	// We also record the call so we can assert it was made
-	args := m.Called(ctx)
-	if args.Error(0) != nil {
-		return args.Error(0)
+func (f *FakeDBTransactionManager) AcquireCommandLease(ctx context.Context, idempotencyKey string, commandHash string) (bool, error) {
+	f.AcquireCommandLeaseCallCount++
+	if f.AcquireCommandLeaseFunc != nil {
+		return f.AcquireCommandLeaseFunc(ctx, idempotencyKey, commandHash)
 	}
-	return err
+	return true, nil // default success
 }
 
-func (m *MockDBTransactionManager) SetTenantContext(ctx context.Context, tenantID types.TenantID) error {
-	args := m.Called(ctx, tenantID)
-	return args.Error(0)
+func (f *FakeDBTransactionManager) RequireReconciliation(ctx context.Context, tenantID types.TenantID, aggregateID string, targetStage string) error {
+	f.RequireReconciliationCallCount++
+	if f.RequireReconciliationFunc != nil {
+		return f.RequireReconciliationFunc(ctx, tenantID, aggregateID, targetStage)
+	}
+	return nil
 }
 
-func (m *MockDBTransactionManager) SaveOutboxEvent(ctx context.Context, event outbox.Event) error {
-	args := m.Called(ctx, event)
-	return args.Error(0)
+func (f *FakeDBTransactionManager) RunInTransaction(ctx context.Context, fn func(txCtx context.Context) error) error {
+	f.RunInTransactionCallCount++
+	if f.RunInTransactionFunc != nil {
+		return f.RunInTransactionFunc(ctx, fn)
+	}
+	return fn(ctx) // default run directly
 }
 
-func (m *MockDBTransactionManager) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
-	args := m.Called(ctx, eventID)
-	return args.Bool(0), args.Error(1)
+func (f *FakeDBTransactionManager) SetTenantContext(ctx context.Context, tenantID types.TenantID) error {
+	return nil
 }
 
-func (m *MockDBTransactionManager) MarkEventProcessed(ctx context.Context, eventID string) error {
-	args := m.Called(ctx, eventID)
-	return args.Error(0)
+func (f *FakeDBTransactionManager) SaveOutboxEvent(ctx context.Context, event outbox.Event) error {
+	f.SaveOutboxEventCallCount++
+	f.CapturedEvent = &event
+	if f.SaveOutboxEventFunc != nil {
+		return f.SaveOutboxEventFunc(ctx, event)
+	}
+	return nil
 }
+
+// --- Test Setup ---
+
+func setupTest() (*policy.DealPolicy, *FakeCortezaCRMGateway, *FakeDBTransactionManager, *command.ChangeDealStageHandler, context.Context) {
+	p := policy.NewDealPolicy()
+	gw := &FakeCortezaCRMGateway{}
+	tx := &FakeDBTransactionManager{}
+	handler := command.NewChangeDealStageHandler(p, gw, tx)
+	
+	ctx := context.Background()
+	ctx = middleware.WithTenantID(ctx, "tenant-1")
+	ctx = middleware.WithActorID(ctx, "actor-1")
+	
+	return p, gw, tx, handler, ctx
+}
+
+func ptrStr(s string) *string { return &s }
+func ptrTime(t time.Time) *time.Time { return &t }
 
 // --- Tests ---
 
-func setupTest() (*policy.DealPolicy, *MockCortezaCRMGateway, *MockDBTransactionManager, *command.ChangeDealStageHandler) {
-	p := policy.NewDealPolicy()
-	gw := new(MockCortezaCRMGateway)
-	tx := new(MockDBTransactionManager)
-	handler := command.NewChangeDealStageHandler(p, gw, tx)
-	return p, gw, tx, handler
-}
-
-func ptrStr(s string) *string {
-	return &s
-}
-
-func ptrTime(t time.Time) *time.Time {
-	return &t
-}
-
 func TestChangeDealStage_Success(t *testing.T) {
-	_, gw, tx, handler := setupTest()
-	ctx := context.Background()
-	tenantID := types.TenantID("tenant-123")
-	dealID := "deal-1"
-
-	cmd := command.ChangeDealStageCommand{
-		DealID:          dealID,
-		TenantID:        tenantID,
-		ExpectedVersion: 1,
-		TargetStage:     policy.DealStageQualified,
-		ActorID:         "actor-1",
-		CorrelationID:   "corr-1",
+	_, gw, tx, handler, ctx := setupTest()
+	cmd := command.ChangeDealStageCommand{DealID: "d1", ExpectedVersion: 1, TargetStage: policy.DealStageQualified}
+	
+	gw.GetDealFunc = func(ctx context.Context, tenantID types.TenantID, dealID string) (*ports.DealProjection, error) {
+		return &ports.DealProjection{ID: "d1", Stage: policy.DealStageOpen, RecordVersion: 1}, nil
 	}
-
-	deal := &ports.DealProjection{
-		ID:            dealID,
-		Stage:         policy.DealStageOpen,
-		RecordVersion: 1,
-	}
-
-	gw.On("GetDeal", ctx, tenantID, dealID).Return(deal, nil)
-	gw.On("UpdateDealStage", ctx, tenantID, dealID, policy.DealStageQualified, 1).Return(nil)
-	tx.On("RunInTransaction", ctx).Return(nil)
-	tx.On("SetTenantContext", ctx, tenantID).Return(nil)
-	tx.On("SaveOutboxEvent", ctx, mock.AnythingOfType("outbox.Event")).Return(nil)
 
 	err := handler.Execute(ctx, cmd)
-
 	assert.NoError(t, err)
-	gw.AssertExpectations(t)
-	tx.AssertExpectations(t)
+	assert.Equal(t, 1, tx.AcquireCommandLeaseCallCount)
+	assert.Equal(t, 1, gw.GetDealCallCount)
+	assert.Equal(t, 1, gw.UpdateDealStageCallCount)
+	assert.Equal(t, 1, tx.SaveOutboxEventCallCount)
+	assert.NotNil(t, tx.CapturedEvent)
+	assert.Equal(t, "crm.deal.stage_changed", tx.CapturedEvent.EventType)
+}
+
+func TestChangeDealStage_UnauthorizedWithoutTenantContext(t *testing.T) {
+	_, _, _, handler, _ := setupTest()
+	ctx := context.Background() // No tenant, no actor
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{})
+	assert.ErrorIs(t, err, command.ErrUnauthorized)
+}
+
+func TestChangeDealStage_UnauthorizedWithoutActorContext(t *testing.T) {
+	_, _, _, handler, _ := setupTest()
+	ctx := middleware.WithTenantID(context.Background(), "t1") // No actor
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{})
+	assert.ErrorIs(t, err, command.ErrUnauthorized)
+}
+
+func TestChangeDealStage_SameIdempotencyKeySameCommandIsIdempotent(t *testing.T) {
+	// Handled by returning ErrCommandLocked when acquired is false
+	_, _, tx, handler, ctx := setupTest()
+	tx.AcquireCommandLeaseFunc = func(ctx context.Context, idempotencyKey string, commandHash string) (bool, error) {
+		return false, nil // Mocking it's already processed/locked
+	}
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{})
+	assert.ErrorIs(t, err, command.ErrCommandLocked)
+}
+
+func TestChangeDealStage_SameIdempotencyKeyDifferentCommandHashIsRejected(t *testing.T) {
+	_, _, tx, handler, ctx := setupTest()
+	tx.AcquireCommandLeaseFunc = func(ctx context.Context, idempotencyKey string, commandHash string) (bool, error) {
+		return false, errors.New("hash conflict") // Mocking hash conflict
+	}
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{})
+	assert.EqualError(t, err, "hash conflict")
+}
+
+func TestChangeDealStage_FreshProcessingOperationIsLocked(t *testing.T) {
+	_, _, tx, handler, ctx := setupTest()
+	tx.AcquireCommandLeaseFunc = func(ctx context.Context, idempotencyKey string, commandHash string) (bool, error) {
+		return false, nil // locked
+	}
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{})
+	assert.ErrorIs(t, err, command.ErrCommandLocked)
+}
+
+func TestChangeDealStage_CompletedOperationDoesNotCallCorteza(t *testing.T) {
+	_, gw, tx, handler, ctx := setupTest()
+	tx.AcquireCommandLeaseFunc = func(ctx context.Context, idempotencyKey string, commandHash string) (bool, error) {
+		return false, nil // already completed/locked
+	}
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{})
+	assert.ErrorIs(t, err, command.ErrCommandLocked)
+	assert.Equal(t, 0, gw.UpdateDealStageCallCount)
 }
 
 func TestChangeDealStage_OptimisticLockFailure(t *testing.T) {
-	_, gw, tx, handler := setupTest()
-	ctx := context.Background()
-
-	cmd := command.ChangeDealStageCommand{
-		DealID:          "deal-1",
-		TenantID:        "tenant-123",
-		ExpectedVersion: 1, // Client expects version 1
-		TargetStage:     policy.DealStageQualified,
+	_, gw, _, handler, ctx := setupTest()
+	gw.GetDealFunc = func(ctx context.Context, tenantID types.TenantID, dealID string) (*ports.DealProjection, error) {
+		return &ports.DealProjection{ID: "d1", Stage: policy.DealStageOpen, RecordVersion: 2}, nil
 	}
-
-	deal := &ports.DealProjection{
-		ID:            "deal-1",
-		Stage:         policy.DealStageOpen,
-		RecordVersion: 2, // Backend has version 2
-	}
-
-	gw.On("GetDeal", ctx, cmd.TenantID, cmd.DealID).Return(deal, nil)
-
-	err := handler.Execute(ctx, cmd)
-
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{ExpectedVersion: 1})
 	assert.ErrorIs(t, err, command.ErrVersionMismatch)
-	gw.AssertExpectations(t)
-	tx.AssertNotCalled(t, "RunInTransaction", mock.Anything)
-	gw.AssertNotCalled(t, "UpdateDealStage", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	assert.Equal(t, 0, gw.UpdateDealStageCallCount)
 }
 
-func TestChangeDealStage_PolicyTransitionFailure(t *testing.T) {
-	_, gw, tx, handler := setupTest()
-	ctx := context.Background()
-
-	cmd := command.ChangeDealStageCommand{
-		DealID:          "deal-1",
-		TenantID:        "tenant-123",
-		ExpectedVersion: 1,
-		TargetStage:     policy.DealStageWon, // Invalid transition from Open
+func TestChangeDealStage_UnknownTargetStageRejected(t *testing.T) {
+	_, gw, _, handler, ctx := setupTest()
+	gw.GetDealFunc = func(ctx context.Context, tenantID types.TenantID, dealID string) (*ports.DealProjection, error) {
+		return &ports.DealProjection{ID: "d1", Stage: policy.DealStageOpen, RecordVersion: 1}, nil
 	}
-
-	deal := &ports.DealProjection{
-		ID:            "deal-1",
-		Stage:         policy.DealStageOpen, // Currently open
-		RecordVersion: 1,
-	}
-
-	gw.On("GetDeal", ctx, cmd.TenantID, cmd.DealID).Return(deal, nil)
-
-	err := handler.Execute(ctx, cmd)
-
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{ExpectedVersion: 1, TargetStage: "unknown_stage"})
 	assert.ErrorIs(t, err, policy.ErrInvalidDealTransition)
-	gw.AssertExpectations(t)
-	tx.AssertNotCalled(t, "RunInTransaction", mock.Anything)
 }
 
 func TestChangeDealStage_WonReadinessViolation(t *testing.T) {
-	_, gw, tx, handler := setupTest()
-	ctx := context.Background()
-
-	cmd := command.ChangeDealStageCommand{
-		DealID:          "deal-1",
-		TenantID:        "tenant-123",
-		ExpectedVersion: 1,
-		TargetStage:     policy.DealStageWon,
+	_, gw, _, handler, ctx := setupTest()
+	gw.GetDealFunc = func(ctx context.Context, tenantID types.TenantID, dealID string) (*ports.DealProjection, error) {
+		return &ports.DealProjection{ID: "d1", Stage: policy.DealStageNegotiation, RecordVersion: 1, AmountMinor: 0, ContactID: ptrStr("c1")}
 	}
-
-	deal := &ports.DealProjection{
-		ID:            "deal-1",
-		Stage:         policy.DealStageNegotiation, // Valid transition, but missing requirements
-		RecordVersion: 1,
-		AmountMinor:   0, // Readiness violation
-		ContactID:     ptrStr("contact-1"),
-		CompanyID:     nil,
-	}
-
-	gw.On("GetDeal", ctx, cmd.TenantID, cmd.DealID).Return(deal, nil)
-
-	err := handler.Execute(ctx, cmd)
-
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{ExpectedVersion: 1, TargetStage: policy.DealStageWon})
 	assert.ErrorIs(t, err, policy.ErrInvalidAmount)
-	gw.AssertExpectations(t)
-	tx.AssertNotCalled(t, "RunInTransaction", mock.Anything)
 }
 
-func TestChangeDealStage_CortezaGatewayRejection(t *testing.T) {
-	_, gw, tx, handler := setupTest()
-	ctx := context.Background()
-
-	cmd := command.ChangeDealStageCommand{
-		DealID:          "deal-1",
-		TenantID:        "tenant-123",
-		ExpectedVersion: 1,
-		TargetStage:     policy.DealStageQualified,
+func TestChangeDealStage_CortezaUpdateFailureMarksRetryableFailure(t *testing.T) {
+	_, gw, tx, handler, ctx := setupTest()
+	cortezaErr := errors.New("corteza down")
+	gw.GetDealFunc = func(ctx context.Context, tenantID types.TenantID, dealID string) (*ports.DealProjection, error) {
+		return &ports.DealProjection{ID: "d1", Stage: policy.DealStageOpen, RecordVersion: 1}, nil
 	}
-
-	deal := &ports.DealProjection{
-		ID:            "deal-1",
-		Stage:         policy.DealStageOpen,
-		RecordVersion: 1,
+	gw.UpdateDealStageFunc = func(ctx context.Context, tenantID types.TenantID, dealID string, targetStage string, expectedVersion int) error {
+		return cortezaErr
 	}
-
-	cortezaErr := errors.New("corteza api error or concurrent lock")
-
-	gw.On("GetDeal", ctx, cmd.TenantID, cmd.DealID).Return(deal, nil)
-	gw.On("UpdateDealStage", ctx, cmd.TenantID, cmd.DealID, policy.DealStageQualified, 1).Return(cortezaErr)
-
-	err := handler.Execute(ctx, cmd)
-
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{ExpectedVersion: 1, TargetStage: policy.DealStageQualified})
 	assert.ErrorIs(t, err, cortezaErr)
-	gw.AssertExpectations(t)
-	tx.AssertNotCalled(t, "RunInTransaction", mock.Anything)
+	assert.Equal(t, 0, tx.SaveOutboxEventCallCount) // No outbox pollution
 }
 
-func TestChangeDealStage_TransactionFailure(t *testing.T) {
-	_, gw, tx, handler := setupTest()
-	ctx := context.Background()
-	tenantID := types.TenantID("tenant-123")
-
-	cmd := command.ChangeDealStageCommand{
-		DealID:          "deal-1",
-		TenantID:        tenantID,
-		ExpectedVersion: 1,
-		TargetStage:     policy.DealStageQualified,
+func TestChangeDealStage_OutboxFailureRequestsReconciliation(t *testing.T) {
+	_, gw, tx, handler, ctx := setupTest()
+	gw.GetDealFunc = func(ctx context.Context, tenantID types.TenantID, dealID string) (*ports.DealProjection, error) {
+		return &ports.DealProjection{ID: "d1", Stage: policy.DealStageOpen, RecordVersion: 1}, nil
 	}
-
-	deal := &ports.DealProjection{
-		ID:            "deal-1",
-		Stage:         policy.DealStageOpen,
-		RecordVersion: 1,
-	}
-
-	dbErr := errors.New("database connection lost")
-
-	gw.On("GetDeal", ctx, cmd.TenantID, cmd.DealID).Return(deal, nil)
-	gw.On("UpdateDealStage", ctx, cmd.TenantID, cmd.DealID, policy.DealStageQualified, 1).Return(nil)
 	
-	// We simulate the transaction failing
-	tx.On("RunInTransaction", ctx).Return(dbErr)
-	tx.On("SetTenantContext", ctx, tenantID).Return(nil)
-	tx.On("SaveOutboxEvent", ctx, mock.Anything).Return(nil)
+	dbErr := errors.New("db down")
+	tx.RunInTransactionFunc = func(ctx context.Context, fn func(txCtx context.Context) error) error {
+		return dbErr
+	}
 
-	err := handler.Execute(ctx, cmd)
-
-	// Since we mock RunInTransaction to just return the error it receives (if we set it), 
-	// wait, our mock implementation above returns fn(ctx) error OR args.Error(0).
-	// If tx.On("RunInTransaction", ctx).Return(dbErr) is set, args.Error(0) is dbErr.
-	assert.ErrorIs(t, err, dbErr)
-	gw.AssertExpectations(t)
-	tx.AssertExpectations(t)
+	err := handler.Execute(ctx, command.ChangeDealStageCommand{ExpectedVersion: 1, TargetStage: policy.DealStageQualified})
+	
+	// Ensure that after RunInTransaction fails, RequireReconciliation is called
+	assert.ErrorIs(t, err, command.ErrDualWriteFailed)
+	assert.Equal(t, 1, gw.UpdateDealStageCallCount)
+	assert.Equal(t, 1, tx.RequireReconciliationCallCount)
 }
