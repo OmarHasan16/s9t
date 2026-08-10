@@ -73,33 +73,61 @@ func (m *RealDBManager) SaveOutboxEvent(ctx context.Context, event outbox.Event)
 func (m *RealDBManager) IsEventProcessed(ctx context.Context, eventID string) (bool, error) { return false, nil }
 func (m *RealDBManager) MarkEventProcessed(ctx context.Context, eventID string) error { return nil }
 
-func (m *RealDBManager) AcquireCommandLease(ctx context.Context, idempotencyKey string, commandHash string) (string, string, error) {
-	tenantID, _ := middleware.TenantIDFromContext(ctx)
-	opID := uuid.New().String()
-	
+func (m *RealDBManager) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time) (string, string, error) {
+	newOpID := uuid.New().String()
 	db := m.getTxOrPool(ctx)
 
-	var currentStatus, currentHash, existingOpID string
-	err := db.QueryRow(ctx, `
+	// Step 1: Attempt to create new operation if not exists
+	_, err := db.Exec(ctx, `
 		INSERT INTO platform.operation_ledger (operation_id, tenant_id, idempotency_key, command_hash, aggregate_id, status)
-		VALUES ($1, $2, $3, $4, '', 'processing')
-		ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET attempt_count = platform.operation_ledger.attempt_count + 1
-		RETURNING operation_id, status, command_hash
-	`, opID, tenantID, idempotencyKey, commandHash).Scan(&existingOpID, &currentStatus, &currentHash)
-
+		VALUES ($1, $2, $3, $4, '', 'pending')
+		ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+	`, newOpID, tenantID, idempotencyKey, commandHash)
+	
 	if err != nil {
 		return "", "", err
 	}
+
+	// Step 2: Attempt to atomically lock and transition to processing
+	staleBefore := now.Add(-5 * time.Minute)
 	
-	if currentHash != commandHash {
-		return existingOpID, "conflict", errors.New("hash conflict")
+	var opID, opStatus, opHash string
+	err = db.QueryRow(ctx, `
+		UPDATE platform.operation_ledger
+		SET status = 'processing',
+			locked_at = $1,
+			locked_by = $2,
+			attempt_count = attempt_count + 1,
+			updated_at = $1
+		WHERE tenant_id = $3
+		  AND idempotency_key = $4
+		  AND command_hash = $5
+		  AND status IN ('pending', 'retryable_failure')
+		  AND (locked_at IS NULL OR locked_at < $6)
+		RETURNING operation_id, status, command_hash
+	`, now, workerID, tenantID, idempotencyKey, commandHash, staleBefore).Scan(&opID, &opStatus, &opHash)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// No rows updated. We must find out why: Was it a hash conflict, or is it already processing/completed?
+			var currentStatus, currentHash string
+			errCheck := db.QueryRow(ctx, `
+				SELECT status, command_hash FROM platform.operation_ledger
+				WHERE tenant_id = $1 AND idempotency_key = $2
+			`, tenantID, idempotencyKey).Scan(&currentStatus, &currentHash)
+			
+			if errCheck != nil {
+				return "", "", errCheck
+			}
+			if currentHash != commandHash {
+				return "", "conflict", command.ErrIdempotencyHashConflict
+			}
+			return "", currentStatus, nil
+		}
+		return "", "", err
 	}
 
-	if existingOpID == opID {
-		return existingOpID, "fresh", nil
-	}
-
-	return existingOpID, currentStatus, nil
+	return opID, opStatus, nil
 }
 
 func (m *RealDBManager) UpdateOperationStatus(ctx context.Context, operationID string, status string, lastError string) error {
@@ -108,9 +136,13 @@ func (m *RealDBManager) UpdateOperationStatus(ctx context.Context, operationID s
 	return err
 }
 
-func (m *RealDBManager) RequireReconciliation(ctx context.Context, tenantID types.TenantID, aggregateID string, targetStage string) error {
+func (m *RealDBManager) RequireReconciliation(ctx context.Context, tenantID types.TenantID, operationID string, reason string) error {
 	db := m.getTxOrPool(ctx)
-	_, err := db.Exec(ctx, `UPDATE platform.operation_ledger SET status = 'reconciliation_required' WHERE aggregate_id = $1 OR aggregate_id = ''`, aggregateID)
+	_, err := db.Exec(ctx, `
+		UPDATE platform.operation_ledger 
+		SET status = 'reconciliation_required', last_error = $1, updated_at = NOW() 
+		WHERE operation_id = $2 AND tenant_id = $3 AND status = 'processing'
+	`, reason, operationID, tenantID)
 	return err
 }
 
@@ -208,8 +240,13 @@ func TestConcurrentCommandLeases_RealDB(t *testing.T) {
 	assert.Equal(t, 1, gw.UpdateDealStageCallCount, "Corteza should be called EXACTLY once")
 
 	var outboxCount, ledgerCount int
-	pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM platform.outbox_events").Scan(&outboxCount)
-	pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM platform.operation_ledger").Scan(&ledgerCount)
+	// Set RLS Context for verification
+	tx, _ := pool.Begin(context.Background())
+	tx.Exec(context.Background(), "SELECT set_config('app.current_tenant', $1, true)", string(tenantUUID))
+	tx.QueryRow(context.Background(), "SELECT COUNT(*) FROM platform.outbox_events").Scan(&outboxCount)
+	tx.QueryRow(context.Background(), "SELECT COUNT(*) FROM platform.operation_ledger").Scan(&ledgerCount)
+	tx.Commit(context.Background())
+	
 	assert.Equal(t, 1, outboxCount, "Exactly one outbox event should be written")
 	assert.Equal(t, 1, ledgerCount, "Exactly one operation ledger row should exist")
 }
@@ -238,14 +275,23 @@ func TestTransactionAtomicity_And_RLS_RealDB(t *testing.T) {
 	err := handler.Execute(ctxA, cmd)
 	assert.NoError(t, err)
 
-	// Validate RLS
-	var count int
-	tx, _ := pool.Begin(context.Background())
-	tx.Exec(context.Background(), "SELECT set_config('app.current_tenant', $1, true)", string(tenantB))
-	err = tx.QueryRow(context.Background(), "SELECT COUNT(*) FROM platform.outbox_events").Scan(&count)
-	tx.Commit(context.Background())
+	// Validate RLS for Tenant B (Should not see Tenant A's row)
+	var countB int
+	txB, _ := pool.Begin(context.Background())
+	txB.Exec(context.Background(), "SELECT set_config('app.current_tenant', $1, true)", string(tenantB))
+	err = txB.QueryRow(context.Background(), "SELECT COUNT(*) FROM platform.outbox_events").Scan(&countB)
+	txB.Commit(context.Background())
 	assert.NoError(t, err)
-	assert.Equal(t, 0, count, "Tenant B should not see Tenant A's events due to RLS")
+	assert.Equal(t, 0, countB, "Tenant B should not see Tenant A's events due to RLS")
+	
+	// Validate RLS for Tenant A (Should see own row)
+	var countA int
+	txA2, _ := pool.Begin(context.Background())
+	txA2.Exec(context.Background(), "SELECT set_config('app.current_tenant', $1, true)", string(tenantA))
+	err = txA2.QueryRow(context.Background(), "SELECT COUNT(*) FROM platform.outbox_events").Scan(&countA)
+	txA2.Commit(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, 1, countA, "Tenant A should see their own events")
 }
 
 func TestReconciliation_DualWriteFailure_RealDB(t *testing.T) {
@@ -273,7 +319,11 @@ func TestReconciliation_DualWriteFailure_RealDB(t *testing.T) {
 	assert.ErrorIs(t, err, command.ErrDualWriteFailed)
 
 	var count int
-	err = pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM platform.operation_ledger WHERE status = 'reconciliation_required'").Scan(&count)
+	tx, _ := pool.Begin(context.Background())
+	tx.Exec(context.Background(), "SELECT set_config('app.current_tenant', $1, true)", string(tenantUUID))
+	err = tx.QueryRow(context.Background(), "SELECT COUNT(*) FROM platform.operation_ledger WHERE status = 'reconciliation_required'").Scan(&count)
+	tx.Commit(context.Background())
+	
 	assert.NoError(t, err)
-	assert.Equal(t, 1, count, "Ledger must record reconciliation_required")
+	assert.Equal(t, 1, count, "Ledger must record reconciliation_required using atomic operation ID")
 }

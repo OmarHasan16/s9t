@@ -18,11 +18,12 @@ import (
 )
 
 var (
-	ErrVersionMismatch      = errors.New("optimistic lock failed: deal version is stale")
-	ErrUnauthorized         = errors.New("unauthorized: missing required context")
-	ErrCommandLocked        = errors.New("command is already being processed")
-	ErrCommandConflict      = errors.New("idempotency key reused with different command payload")
-	ErrDualWriteFailed      = errors.New("corteza update succeeded but local outbox failed: requires reconciliation")
+	ErrVersionMismatch         = errors.New("optimistic lock failed: deal version is stale")
+	ErrUnauthorized            = errors.New("unauthorized: missing required context")
+	ErrCommandLocked           = errors.New("command is already being processed")
+	ErrCommandConflict         = errors.New("idempotency key reused with different command payload")
+	ErrDualWriteFailed         = errors.New("corteza update succeeded but local outbox failed: requires reconciliation")
+	ErrIdempotencyHashConflict = errors.New("idempotency hash conflict")
 )
 
 type ChangeDealStageCommand struct {
@@ -37,20 +38,22 @@ type ChangeDealStageHandler struct {
 	policy        *policy.DealPolicy
 	crmGateway    ports.CortezaCRMGateway
 	dbTransaction ports.DBTransactionManager
+	clock         ports.Clock
+	workerID      string
 }
 
-func NewChangeDealStageHandler(p *policy.DealPolicy, gw ports.CortezaCRMGateway, tx ports.DBTransactionManager) *ChangeDealStageHandler {
-	return &ChangeDealStageHandler{policy: p, crmGateway: gw, dbTransaction: tx}
+func NewChangeDealStageHandler(p *policy.DealPolicy, gw ports.CortezaCRMGateway, tx ports.DBTransactionManager, clock ports.Clock) *ChangeDealStageHandler {
+	return &ChangeDealStageHandler{policy: p, crmGateway: gw, dbTransaction: tx, clock: clock, workerID: "gateway-" + uuid.New().String()}
 }
 
-func hashCommand(cmd ChangeDealStageCommand) string {
+func HashCommand(cmd ChangeDealStageCommand) string {
 	b, _ := json.Marshal(cmd)
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }
 
 func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStageCommand) error {
-	// 1. Context Verification
+	// 1. Auth identity validate
 	tenantID, ok := middleware.TenantIDFromContext(ctx)
 	if !ok || tenantID == "" {
 		return ErrUnauthorized
@@ -60,56 +63,79 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 		return ErrUnauthorized
 	}
 
-	// 2. Fetch current projection from Corteza
+	cmdHash := HashCommand(cmd)
+
+	// 2. Existing key/hash read-only lookup
+	status, hash, err := h.dbTransaction.CheckIdempotencyStatus(ctx, tenantID, cmd.IdempotencyKey)
+	if err == nil {
+		if hash != cmdHash {
+			// 4. Hash mismatch -> conflict, row unchanged
+			return ErrCommandConflict
+		}
+		if status == "completed" {
+			// 3. Completed + same hash -> idempotent success
+			return nil
+		}
+		if status == "processing" {
+			// 5. Fresh processing -> locked
+			return ErrCommandLocked
+		}
+	} else {
+		// Ignore not found errors and proceed
+	}
+
+	// 6. Deal/version/domain validation
 	deal, err := h.crmGateway.GetDeal(ctx, tenantID, cmd.DealID)
 	if err != nil {
 		return fmt.Errorf("corteza fetch failed: %w", err)
 	}
 
-	// 3. Optimistic Locking / Version Check
 	if deal.RecordVersion != cmd.ExpectedVersion {
 		return ErrVersionMismatch
 	}
 
-	// 4. Pure Policy Validation
 	if err := h.policy.CanTransition(deal.Stage, cmd.TargetStage); err != nil {
 		return err
 	}
 	if cmd.TargetStage == policy.DealStageWon {
-		amount, _ := valueobject.NewMoney(deal.AmountMinor, deal.Currency)
+		amount, err := valueobject.NewMoney(deal.AmountMinor, deal.Currency)
+		if err != nil {
+			return fmt.Errorf("invalid deal money: %w", err)
+		}
 		if err := h.policy.EnsureWonReadiness(deal.ContactID, deal.CompanyID, amount, deal.ExpectedCloseDate); err != nil {
 			return err
 		}
 	}
 
-	// 5. Idempotency Reserve/Claim
-	cmdHash := hashCommand(cmd)
-	opID, opStatus, err := h.dbTransaction.AcquireCommandLease(ctx, cmd.IdempotencyKey, cmdHash)
+	// 7. New operation reserve or retryable operation claim
+	now := h.clock.Now().UTC()
+	staleBefore := now.Add(-5 * time.Minute)
+	opID, opStatus, err := h.dbTransaction.AcquireCommandLease(ctx, tenantID, cmd.IdempotencyKey, cmdHash, h.workerID, now, staleBefore)
 	if err != nil {
-		// Handled by DB constraint violation logic internally, mapped to conflict
-		return ErrCommandConflict
-	}
-	
-	switch opStatus {
-	case "completed":
-		return nil // Idempotent success
-	case "processing":
-		return ErrCommandLocked
-	case "retryable_failure":
-		// Resume execution
-	case "fresh":
-		// Proceed
+		if errors.Is(err, ErrIdempotencyHashConflict) {
+			return ErrCommandConflict
+		}
+		return fmt.Errorf("acquire operation lease: %w", err)
 	}
 
-	// 6. EXTERNAL API CALL
+	if opStatus != "processing" {
+		// If another worker beat us to it, or it completed just now
+		if opStatus == "completed" {
+			return nil
+		}
+		return ErrCommandLocked
+	}
+
+	// 8. Corteza update
 	actualVersion, err := h.crmGateway.UpdateDealStage(ctx, tenantID, cmd.DealID, cmd.TargetStage, cmd.ExpectedVersion)
 	if err != nil {
-		// Update lease on failure
-		_ = h.dbTransaction.UpdateOperationStatus(ctx, opID, "retryable_failure", err.Error())
+		statusErr := h.dbTransaction.UpdateOperationStatus(ctx, opID, "retryable_failure", err.Error())
+		if statusErr != nil {
+			return fmt.Errorf("corteza update failed: %w, also status update failed: %v", err, statusErr)
+		}
 		return fmt.Errorf("corteza update failed: %w", err)
 	}
 
-	// 7. Event Payload Generation
 	eventType := "crm.deal.stage_changed"
 	if cmd.TargetStage == policy.DealStageWon {
 		eventType = "crm.deal.won"
@@ -125,14 +151,14 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 		"currency":       deal.Currency,
 		"actor_id":       actorID,
 		"correlation_id": cmd.CorrelationID,
-		"actual_version": actualVersion, // Blocker 4 fix
+		"actual_version": actualVersion,
 	})
 	if err != nil {
 		_ = h.dbTransaction.UpdateOperationStatus(ctx, opID, "retryable_failure", "marshal deal event failed")
-		return fmt.Errorf("marshal deal event: %w", err) // Blocker 5 fix
+		return fmt.Errorf("marshal deal event: %w", err) 
 	}
 
-	// 8. LOCAL DB TRANSACTION: Write Intent/Outbox & Update Ledger Atomically
+	// 9. Outbox + operation completion in same DB tx
 	err = h.dbTransaction.RunInTransaction(ctx, func(txCtx context.Context) error {
 		if err := h.dbTransaction.SetTenantContext(txCtx, tenantID); err != nil {
 			return err
@@ -145,8 +171,8 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 			AggregateID:  cmd.DealID,
 			Payload:      eventPayload,
 			Status:       outbox.StatusPending,
-			CreatedAt:    time.Now().UTC(),
-			AvailableAt:  time.Now().UTC(),
+			CreatedAt:    now,
+			AvailableAt:  now,
 			AttemptCount: 0,
 		}
 
@@ -154,13 +180,12 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 			return err
 		}
 		
-		// Mark Operation Completed in same tx
 		return h.dbTransaction.UpdateOperationStatus(txCtx, opID, "completed", "")
 	})
 
 	if err != nil {
-		// 9. Dual-Write Reconciliation Catch
-		_ = h.dbTransaction.RequireReconciliation(ctx, tenantID, cmd.DealID, cmd.TargetStage)
+		// exact operationID + tenant-scoped reconciliation
+		_ = h.dbTransaction.RequireReconciliation(ctx, tenantID, opID, "outbox persistence failed")
 		return ErrDualWriteFailed
 	}
 
