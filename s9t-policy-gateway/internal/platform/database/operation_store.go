@@ -89,7 +89,7 @@ func (s *OperationStore) CheckIdempotencyStatus(ctx context.Context, tenantID ty
 	return status, hash, nil
 }
 
-func (s *OperationStore) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error) {
+func (s *OperationStore) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, meta ports.OperationMetadata, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error) {
 	newOpID := uuid.New().String()
 	leaseToken := uuid.New().String()
 	var opID, opStatus, opHash string
@@ -101,10 +101,10 @@ func (s *OperationStore) AcquireCommandLease(ctx context.Context, tenantID types
 		tx := txCtx.Value(txKey{}).(pgx.Tx)
 
 		_, err := tx.Exec(txCtx, `
-			INSERT INTO platform.operation_ledger (operation_id, tenant_id, idempotency_key, command_hash, aggregate_id, status)
-			VALUES ($1, $2, $3, $4, '', 'pending')
+			INSERT INTO platform.operation_ledger (operation_id, tenant_id, idempotency_key, command_hash, aggregate_type, aggregate_id, expected_version, target_state, correlation_id, actor_id, status)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
 			ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
-		`, newOpID, tenantID, idempotencyKey, commandHash)
+		`, newOpID, tenantID, idempotencyKey, commandHash, meta.AggregateType, meta.AggregateID, meta.ExpectedVersion, meta.TargetState, meta.CorrelationID, meta.ActorID)
 		
 		if err != nil {
 			return err
@@ -121,7 +121,7 @@ func (s *OperationStore) AcquireCommandLease(ctx context.Context, tenantID types
 			WHERE tenant_id = $4
 			  AND idempotency_key = $5
 			  AND command_hash = $6
-			  AND status IN ('pending', 'retryable_failure')
+			  AND status IN ('pending', 'processing', 'retryable_failure')
 			  AND (locked_at IS NULL OR locked_at < $7)
 			RETURNING operation_id, status, command_hash
 		`, now, workerID, leaseToken, tenantID, idempotencyKey, commandHash, staleBefore).Scan(&opID, &opStatus, &opHash)
@@ -155,7 +155,7 @@ func (s *OperationStore) UpdateOperationStatus(ctx context.Context, tenantID typ
 	if status == "completed" {
 		query = `
 			UPDATE platform.operation_ledger 
-			SET status = $1, last_error = $2, updated_at = NOW(), locked_at = NULL, locked_by = NULL
+			SET status = $1, last_error = $2, updated_at = NOW(), locked_at = NULL, locked_by = NULL, lease_token = NULL
 			WHERE operation_id = $3 AND tenant_id = $4 AND lease_token = $5`
 	}
 

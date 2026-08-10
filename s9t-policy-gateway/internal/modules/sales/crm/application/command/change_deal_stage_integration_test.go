@@ -94,7 +94,7 @@ func (m *RealDBManager) CheckIdempotencyStatus(ctx context.Context, tenantID typ
 	return status, hash, nil
 }
 
-func (m *RealDBManager) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error) {
+func (m *RealDBManager) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, meta ports.OperationMetadata, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error) {
 	newOpID := uuid.New().String()
 	leaseToken := uuid.New().String()
 	var opID, opStatus, opHash string
@@ -106,10 +106,10 @@ func (m *RealDBManager) AcquireCommandLease(ctx context.Context, tenantID types.
 		tx := txCtx.Value(txKey{}).(pgx.Tx)
 
 		_, err := tx.Exec(txCtx, `
-			INSERT INTO platform.operation_ledger (operation_id, tenant_id, idempotency_key, command_hash, aggregate_id, status)
-			VALUES ($1, $2, $3, $4, '', 'pending')
+			INSERT INTO platform.operation_ledger (operation_id, tenant_id, idempotency_key, command_hash, aggregate_type, aggregate_id, expected_version, target_state, correlation_id, actor_id, status)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
 			ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
-		`, newOpID, tenantID, idempotencyKey, commandHash)
+		`, newOpID, tenantID, idempotencyKey, commandHash, meta.AggregateType, meta.AggregateID, meta.ExpectedVersion, meta.TargetState, meta.CorrelationID, meta.ActorID)
 		
 		if err != nil {
 			return err
@@ -126,7 +126,7 @@ func (m *RealDBManager) AcquireCommandLease(ctx context.Context, tenantID types.
 			WHERE tenant_id = $4
 			  AND idempotency_key = $5
 			  AND command_hash = $6
-			  AND status IN ('pending', 'retryable_failure')
+			  AND status IN ('pending', 'processing', 'retryable_failure')
 			  AND (locked_at IS NULL OR locked_at < $7)
 			RETURNING operation_id, status, command_hash
 		`, now, workerID, leaseToken, tenantID, idempotencyKey, commandHash, staleBefore).Scan(&opID, &opStatus, &opHash)
@@ -160,7 +160,7 @@ func (m *RealDBManager) UpdateOperationStatus(ctx context.Context, tenantID type
 	if status == "completed" {
 		query = `
 			UPDATE platform.operation_ledger 
-			SET status = $1, last_error = $2, updated_at = NOW(), locked_at = NULL, locked_by = NULL
+			SET status = $1, last_error = $2, updated_at = NOW(), locked_at = NULL, locked_by = NULL, lease_token = NULL
 			WHERE operation_id = $3 AND tenant_id = $4 AND lease_token = $5`
 	}
 
@@ -401,8 +401,8 @@ func TestLeaseFencing_RealDB(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	// 1. Acquire lease
-	opID, opStatus, leaseToken, err := txManager.AcquireCommandLease(ctx, tenantA, "idem-lease", "hash-1", "worker-1", now, now.Add(-5*time.Minute))
+	meta := ports.OperationMetadata{AggregateType: "test", AggregateID: "1"}
+	opID, opStatus, leaseToken, err := txManager.AcquireCommandLease(ctx, tenantA, "idem-lease", "hash-1", meta, "worker-1", now, now.Add(-5*time.Minute))
 	assert.NoError(t, err)
 	assert.Equal(t, "processing", opStatus)
 	assert.NotEmpty(t, opID)
@@ -433,4 +433,40 @@ func TestLeaseFencing_RealDB(t *testing.T) {
 	assert.Equal(t, "completed", status)
 	assert.Nil(t, lockedAt)
 	assert.Nil(t, lockedBy)
+}
+
+func TestStaleProcessingReclaim_RealDB(t *testing.T) {
+	pool, cleanup := setupTestcontainers(t)
+	defer cleanup()
+
+	txManager := &RealDBManager{pool: pool}
+	tenantA := types.TenantID("550e8400-e29b-41d4-a716-446655440000")
+	ctx := context.Background()
+	now := time.Now().UTC()
+	staleBefore := now.Add(-5 * time.Minute)
+	meta := ports.OperationMetadata{AggregateType: "test", AggregateID: "1"}
+
+	// 1. Worker 1 acquires lease at T-10m
+	oldTime := now.Add(-10 * time.Minute)
+	opID1, status1, lease1, err := txManager.AcquireCommandLease(ctx, tenantA, "idem-stale", "hash-1", meta, "worker-1", oldTime, oldTime.Add(-5*time.Minute))
+	assert.NoError(t, err)
+	assert.Equal(t, "processing", status1)
+
+	// 2. Worker 2 tries to acquire lease with staleBefore = now - 5m
+	// Since oldTime is T-10m, it is < staleBefore (T-5m), so worker 2 should successfully reclaim
+	opID2, status2, lease2, err := txManager.AcquireCommandLease(ctx, tenantA, "idem-stale", "hash-1", meta, "worker-2", now, staleBefore)
+	assert.NoError(t, err)
+	assert.Equal(t, "processing", status2)
+	assert.Equal(t, opID1, opID2, "Should reclaim same operation")
+	assert.NotEqual(t, lease1, lease2, "Should issue new lease token")
+
+	// 3. Worker 1 tries to update with old lease token (should fail)
+	err = txManager.UpdateOperationStatus(ctx, tenantA, opID1, "completed", "", lease1)
+	assert.ErrorContains(t, err, "stale lease or operation not found")
+
+	// 4. Worker 3 tries to acquire lease immediately (should fail to reclaim because lock is fresh)
+	_, status3, _, err := txManager.AcquireCommandLease(ctx, tenantA, "idem-stale", "hash-1", meta, "worker-3", now, staleBefore)
+	assert.NoError(t, err)
+	assert.Equal(t, "processing", status3, "Should return existing status processing without reclaiming")
+	// Note: in AcquireCommandLease, if conflict and rows not updated, it returns existing status and no token
 }

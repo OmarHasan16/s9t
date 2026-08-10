@@ -51,7 +51,7 @@ func (f *FakeCortezaCRMGateway) UpdateDealStage(ctx context.Context, tenantID ty
 type FakeDBTransactionManager struct {
 	RunInTransactionFunc       func(ctx context.Context, fn func(txCtx context.Context) error) error
 	CheckIdempotencyStatusFunc func(ctx context.Context, tenantID types.TenantID, idempotencyKey string) (string, string, error)
-	AcquireCommandLeaseFunc    func(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error)
+	AcquireCommandLeaseFunc    func(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, meta ports.OperationMetadata, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error)
 	UpdateOperationStatusFunc  func(ctx context.Context, tenantID types.TenantID, operationID string, status string, lastError string, leaseToken string) error
 	RequireReconciliationFunc  func(ctx context.Context, tenantID types.TenantID, operationID string, reason string, leaseToken string) error
 	SaveOutboxEventFunc        func(ctx context.Context, event outbox.Event) error
@@ -74,12 +74,12 @@ func (f *FakeDBTransactionManager) CheckIdempotencyStatus(ctx context.Context, t
 	return "", "", ports.ErrOperationNotFound
 }
 
-func (f *FakeDBTransactionManager) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error) {
+func (f *FakeDBTransactionManager) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, meta ports.OperationMetadata, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error) {
 	f.AcquireCommandLeaseCallCount++
 	if f.AcquireCommandLeaseFunc != nil {
-		return f.AcquireCommandLeaseFunc(ctx, tenantID, idempotencyKey, commandHash, workerID, now, staleBefore)
+		return f.AcquireCommandLeaseFunc(ctx, tenantID, idempotencyKey, commandHash, meta, workerID, now, staleBefore)
 	}
-	return "op-123", "processing", "lease-456", nil
+	return "op-1", "processing", "lease-1", nil
 }
 
 func (f *FakeDBTransactionManager) UpdateOperationStatus(ctx context.Context, tenantID types.TenantID, operationID string, status string, lastError string, leaseToken string) error {

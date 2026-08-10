@@ -45,16 +45,19 @@ type ChangeDealStageHandler struct {
 }
 
 func NewChangeDealStageHandler(p *policy.DealPolicy, gw ports.CortezaCRMGateway, tx ports.DBTransactionManager, clock ports.Clock, leaseDuration time.Duration) *ChangeDealStageHandler {
-	if leaseDuration == 0 {
+	if leaseDuration <= 0 {
 		leaseDuration = 5 * time.Minute // default
 	}
 	return &ChangeDealStageHandler{policy: p, crmGateway: gw, dbTransaction: tx, clock: clock, leaseDuration: leaseDuration, workerID: "gateway-" + uuid.New().String()}
 }
 
-func HashCommand(cmd ChangeDealStageCommand) string {
-	b, _ := json.Marshal(cmd)
+func HashCommand(cmd ChangeDealStageCommand) (string, error) {
+	b, err := json.Marshal(cmd)
+	if err != nil {
+		return "", err
+	}
 	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
+	return hex.EncodeToString(h[:]), nil
 }
 
 func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStageCommand) error {
@@ -68,7 +71,10 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 		return ErrUnauthorized
 	}
 
-	cmdHash := HashCommand(cmd)
+	cmdHash, err := HashCommand(cmd)
+	if err != nil {
+		return fmt.Errorf("hash command failed: %w", err)
+	}
 
 	// 2. Existing key/hash read-only lookup
 	status, hash, err := h.dbTransaction.CheckIdempotencyStatus(ctx, tenantID, cmd.IdempotencyKey)
@@ -126,7 +132,17 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 	// 7. New operation reserve or retryable operation claim
 	now := h.clock.Now().UTC()
 	staleBefore := now.Add(-h.leaseDuration)
-	opID, opStatus, leaseToken, err := h.dbTransaction.AcquireCommandLease(ctx, tenantID, cmd.IdempotencyKey, cmdHash, h.workerID, now, staleBefore)
+	
+	meta := ports.OperationMetadata{
+		AggregateType:   "crm.deal",
+		AggregateID:     cmd.DealID,
+		ExpectedVersion: cmd.ExpectedVersion,
+		TargetState:     cmd.TargetStage,
+		CorrelationID:   cmd.CorrelationID,
+		ActorID:         actorID,
+	}
+
+	opID, opStatus, leaseToken, err := h.dbTransaction.AcquireCommandLease(ctx, tenantID, cmd.IdempotencyKey, cmdHash, meta, h.workerID, now, staleBefore)
 	if err != nil {
 		if errors.Is(err, ports.ErrIdempotencyHashConflict) {
 			return ErrOperationConflict

@@ -3,9 +3,12 @@ CREATE TABLE platform.operation_ledger (
     tenant_id UUID NOT NULL,
     idempotency_key TEXT NOT NULL,
     command_hash TEXT NOT NULL,
+    aggregate_type TEXT NOT NULL,
     aggregate_id TEXT NOT NULL,
     expected_version INT,
     target_state TEXT,
+    correlation_id TEXT,
+    actor_id TEXT,
     status TEXT NOT NULL, -- 'pending', 'processing', 'completed', 'retryable_failure', 'reconciliation_required'
     attempt_count INT DEFAULT 0,
     last_error TEXT,
