@@ -1,0 +1,128 @@
+# List of loggable service actions
+
+resource: compose:namespace
+service: namespace
+
+# Default sensitivity for actions
+defaultActionSeverity: notice
+
+# default severity for errors
+defaultErrorSeverity: error
+
+import:
+  - github.com/cortezaproject/corteza/server/compose/types
+
+props:
+  - name: namespace
+    type: "*types.Namespace"
+    fields: [ name, slug, ID, enabled ]
+  - name: changed
+    type: "*types.Namespace"
+    fields: [ name, slug, ID, meta, enabled ]
+  - name: archiveFormat
+    type: string
+  - name: filter
+    type: "*types.NamespaceFilter"
+    fields: [ query, slug, sort, limit ]
+
+actions:
+  - action: search
+    log: "searched for namespaces"
+    severity: info
+
+  - action: lookup
+    log: "looked-up for a {{namespace}}"
+    severity: info
+
+  - action: create
+    log: "created {{namespace}}"
+
+  - action: update
+    log: "updated {{namespace}}"
+
+  - action: clone
+    log: "cloned {namespace}"
+
+  - action: export
+    log: "exported {namespace}"
+
+  - action: importInit
+    log: "import initialized for {namespace}"
+
+  - action: importRun
+    log: "imported {namespace}"
+
+  - action: delete
+    log: "deleted {{namespace}}"
+
+  - action: undelete
+    log: "undeleted {{namespace}}"
+
+  - action: reorder
+    log: "reordered {{namespace}}"
+
+errors:
+  - error: notFound
+    message: "namespace does not exist"
+    severity: warning
+
+  - error: invalidID
+    message: "invalid ID"
+    severity: warning
+
+  - error: invalidHandle
+    message: "invalid handle"
+    severity: warning
+
+  - error: handleNotUnique
+    message: "handle not unique"
+    log: "used duplicate handle ({{namespace.slug}}) for namespace"
+    severity: warning
+
+  - error: staleData
+    message: "namespace was modified by someone else or by a workflow after you've opened it. Please refresh to see the latest updated version"
+    severity: warning
+
+  - error: unsupportedExportFormat
+    message: "unsupported export format"
+    log: "could not export namespace {{namespace}}; unsupported format {{archiveFormat}}"
+
+  - error: unsupportedImportFormat
+    message: "unsupported import format"
+    log: "could not import namespace {{namespace}}; unsupported format {{archiveFormat}}"
+
+  - error: importMissingNamespace
+    message: "import source does not contain a namespace"
+    log: "could not import namespace; import source does not contain a namespace"
+
+  - error: importSessionNotFound
+    message: "the import session does not exist"
+    log: "could not import namespace {{namespace}}; the import session does not exist"
+
+  - error: cloneMultiple
+    message: "not allowed to clone multiple namespaces at once"
+    log: "could not clone namespaces; multiple duplications requested at once"
+
+  - error: notAllowedToRead
+    message: "not allowed to read this namespace"
+    log: "could not read {{namespace}}; insufficient permissions"
+
+  - error: notAllowedToSearch
+    message: "not allowed to search or list namespaces"
+    log: "could not search or list namespaces; insufficient permissions"
+
+  - error: notAllowedToCreate
+    message: "not allowed to create namespaces"
+    log: "could not create namespaces; insufficient permissions"
+
+  - error: notAllowedToUpdate
+    message: "not allowed to update this namespace"
+    log: "could not update {{namespace}}; insufficient permissions"
+
+  - error: notAllowedToDelete
+    message: "not allowed to delete this namespace"
+    log: "could not delete {{namespace}}; insufficient permissions"
+
+  - error: notAllowedToUndelete
+    message: "not allowed to undelete this namespace"
+    log: "could not undelete {{namespace}}; insufficient permissions"

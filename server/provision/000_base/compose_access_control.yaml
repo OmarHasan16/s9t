@@ -1,0 +1,148 @@
+allow:
+  authenticated:
+    corteza::compose/:
+      - namespaces.search
+
+    corteza::compose:namespace/*:
+      - read
+      - export
+      - modules.export
+      - charts.export
+      - pages.export
+      - pages.search
+      - modules.search
+      - charts.search
+
+    corteza::compose:module/*/*:
+      - read
+      - export
+      - records.search
+
+    corteza::compose:module-field/*/*/*:
+      - record.value.read
+
+    corteza::compose:page/*/*:
+      - read
+      - export
+
+    corteza::compose:page-layout/*/*/*:
+      - read
+
+    corteza::compose:chart/*/*:
+      - read
+      - export
+
+    corteza::compose:record/*/*/*:
+      - read
+
+  admin:
+    corteza::compose/:
+      - grant
+      - settings.read
+      - settings.manage
+      - namespace.create
+      - namespaces.search
+
+    corteza::compose:namespace/*:
+      - read
+      - update
+      - delete
+      - manage
+      - export
+      - modules.export
+      - charts.export
+      - pages.export
+      - page.create
+      - pages.search
+      - module.create
+      - modules.search
+      - chart.create
+      - charts.search
+
+    corteza::compose:module/*/*:
+      - read
+      - update
+      - delete
+      - export
+      - record.create
+      - records.search
+
+    corteza::compose:module-field/*/*/*:
+      - record.value.read
+      - record.value.update
+
+    corteza::compose:record/*/*/*:
+      - read
+      - update
+      - delete
+      - revisions.search
+
+    corteza::compose:chart/*/*:
+      - read
+      - update
+      - delete
+      - export
+
+    corteza::compose:page/*/*:
+      - read
+      - update
+      - delete
+      - export
+
+    corteza::compose:page-layout/*/*/*:
+      - read
+      - update
+      - delete
+
+  low-code-admin:
+    corteza::compose/:
+      - grant
+      - settings.read
+      - settings.manage
+      - namespace.create
+      - namespaces.search
+
+    corteza::compose:namespace/*:
+      - read
+      - update
+      - delete
+      - manage
+      - export
+      - modules.export
+      - charts.export
+      - pages.export
+      - page.create
+      - pages.search
+      - module.create
+      - modules.search
+      - chart.create
+      - charts.search
+
+    corteza::compose:module/*/*:
+      - read
+      - update
+      - delete
+      - export
+      - record.create
+      - records.search
+
+    corteza::compose:module-field/*/*/*:
+      - record.value.read
+      - record.value.update
+
+    corteza::compose:record/*/*/*:
+      - read
+      - update
+      - delete
+
+    corteza::compose:chart/*/*:
+      - read
+      - update
+      - delete
+      - export
+
+    corteza::compose:page/*/*:
+      - read
+      - update
+      - delete
+      - export

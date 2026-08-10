@@ -1,0 +1,45 @@
+params:
+  message: &message
+    required: true
+    types:
+      - { wf: String }
+  fields: &fields
+    types:
+      - { wf: KV }
+
+labels: &labels
+  debug:  "step"
+  logger: "step,workflow"
+
+functions:
+  debug:
+    meta:
+      short: Log debug message
+    labels: *labels
+    params:
+      message: *message
+      fields: *fields
+
+  info:
+    meta:
+      short: Log info message
+    labels: *labels
+    params:
+      message: *message
+      fields:  *fields
+
+  warn:
+    meta:
+      short: Log warning message
+    labels: *labels
+    params:
+      message: *message
+      fields:  *fields
+
+  error:
+    meta:
+      short: Log error message
+    labels: *labels
+    params:
+      message: *message
+      fields:  *fields

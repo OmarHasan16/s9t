@@ -1,0 +1,75 @@
+# List of loggable service actions
+
+resource: system:reminder
+service: reminder
+
+# Default sensitivity for actions
+defaultActionSeverity: notice
+
+# default severity for errors
+defaultErrorSeverity: error
+
+import:
+  - github.com/cortezaproject/corteza/server/system/types
+
+props:
+  - name: reminder
+    type: "*types.Reminder"
+    fields: [ resource, ID, assignedTo, assignedBy, remindAt ]
+  - name: new
+    type: "*types.Reminder"
+    fields: [ resource, ID, assignedTo, assignedBy, remindAt ]
+  - name: updated
+    type: "*types.Reminder"
+    fields: [ resource, ID, assignedTo, assignedBy, remindAt ]
+  - name: filter
+    type: "*types.ReminderFilter"
+    fields: [ resource, reminderID, assignedTo, scheduledFrom, scheduledUntil, excludeDismissed, scheduledOnly, sort ]
+
+actions:
+  - action: search
+    log: "searched for reminders"
+    severity: info
+
+  - action: lookup
+    log: "looked-up for a {{reminder}}"
+    severity: info
+
+  - action: create
+    log: "created {{reminder}}"
+
+  - action: update
+    log: "updated {{reminder}}"
+
+  - action: delete
+    log: "deleted {{reminder}}"
+
+  - action: dismiss
+    log: "dismissed {{reminder}}"
+
+  - action: undismiss
+    log: "undismissed {{reminder}}"
+
+  - action: snooze
+    log: "snoozed {{reminder}}"
+
+errors:
+  - error: notFound
+    message: "reminder not found"
+    severity: warning
+
+  - error: invalidID
+    message: "invalid ID"
+    severity: warning
+
+  - error: notAllowedToAssign
+    message: "not allowed to assign reminders to other users"
+
+  - error: notAllowedToDismiss
+    message: "not allowed to dismiss reminders of other users"
+
+  - error: notAllowedToUndismiss
+    message: "not allowed to undo dismissed reminders of other users"
+
+  - error: notAllowedToRead
+    message: "not allowed to read reminders of other users"

@@ -1,0 +1,21 @@
+apigateway:
+  - endpoint: /test
+    method: GET
+    enabled: true
+    filters:
+      - ref: "queryParam"
+        kind: "prefilter"
+        enabled: true
+        params:
+          expr: "token == \"super-secret-token\""
+
+  - endpoint: /test-hyphen
+    method: GET
+    enabled: true
+    filters:
+      - ref: "queryParam"
+        kind: "prefilter"
+        enabled: true
+        params:
+          expr: "foo-bar == \"encrypted-string\""
+

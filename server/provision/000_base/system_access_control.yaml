@@ -1,0 +1,172 @@
+allow:
+  authenticated:
+    corteza::system/:
+      - applications.search
+      - auth-clients.search
+      - users.search
+      - roles.search
+
+    corteza::system:user/*:
+      - read
+      - email.unmask
+      - name.unmask
+
+    corteza::system:application/*:
+      - read
+      - application.flag.self
+
+    corteza::system:role/*:
+      - read
+
+    corteza::system:auth-client/*:
+      - authorize
+
+  admin:
+    corteza::system/:
+      - grant
+      - action-log.read
+      - settings.read
+      - settings.manage
+      - application.create
+      - applications.search
+      - auth-client.create
+      - auth-clients.search
+      - user.create
+      - users.search
+      - template.create
+      - templates.search
+      - role.create
+      - roles.search
+      - reminder.assign
+      - queue.create
+      - queues.search
+      - application.flag.global
+      - apigw-route.create
+      - apigw-routes.search
+      - report.create
+      - reports.search
+
+    corteza::system:auth-client/*:
+      - read
+      - update
+      - delete
+      - authorize
+
+    corteza::system:application/*:
+      - read
+      - update
+      - delete
+
+    corteza::system:user/*:
+      - read
+      - update
+      - suspend
+      - unsuspend
+      - delete
+      - email.unmask
+      - name.unmask
+
+    corteza::system:role/*:
+      - read
+      - update
+      - delete
+      - members.manage
+
+    corteza::system:template/*:
+      - read
+      - update
+      - delete
+      - render
+
+    corteza::system:queue/*:
+      - read
+      - update
+      - delete
+      - queue.read
+      - queue.write
+
+    corteza::system:apigw-route/*:
+      - read
+      - update
+      - delete
+
+    corteza::system:report/*:
+      - read
+      - update
+      - delete
+      - run
+
+  security-admin:
+    corteza::compose/:
+      - grant
+      - action-log.read
+      - settings.read
+      - settings.manage
+
+    corteza::automation/:
+      - grant
+      - settings.read
+      - settings.manage
+
+    corteza::federation/:
+      - grant
+      - settings.read
+      - settings.manage
+
+    corteza::system/:
+      - grant
+      - settings.read
+      - settings.manage
+      - application.create
+      - applications.search
+      - auth-client.create
+      - auth-clients.search
+      - user.create
+      - users.search
+      - template.create
+      - templates.search
+      - role.create
+      - roles.search
+      - reminder.assign
+      - queue.create
+      - queues.search
+      - report.create
+      - reports.search
+
+    corteza::system:auth-client/*:
+      - read
+      - update
+      - delete
+      - authorize
+
+    corteza::system:application/*:
+      - read
+      - update
+      - delete
+
+    corteza::system:user/*:
+      - read
+      - update
+      - suspend
+      - unsuspend
+      - delete
+
+    corteza::system:role/*:
+      - read
+      - update
+      - delete
+      - members.manage
+
+    corteza::system:report/*:
+      - read
+      - update
+      - delete
+      - run
+
+  data-privacy-officer:
+    corteza::system:data-privacy-request/*:
+      - read
+      - approve
+
+    corteza::system/:
+      - data-privacy-requests.search

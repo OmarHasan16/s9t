@@ -1,0 +1,216 @@
+imports:
+  - github.com/cortezaproject/corteza/server/system/types
+  - labelTypes github.com/cortezaproject/corteza/server/pkg/label/types
+
+
+params:
+  lookup: &lookup
+    required: true
+    types:
+      - { wf: ID,     }
+      - { wf: Handle, }
+      - { wf: Role,   suffix: res }
+
+  role: &role
+    types:
+      - { wf: Role }
+
+  rvRole: &rvRole
+    wf: Role
+
+  rvUser: &rvUser
+    wf: User
+
+  rvTotal: &rvTotal
+    wf: UnsignedInteger
+
+  rvPageCursor: &rvPageCursor
+    wf: String
+
+  lookupUser: &lookupUser
+    required: true
+    types:
+      - { wf: ID     }
+      - { wf: Handle }
+      - { wf: String, suffix: email }
+      - { wf: User,   suffix: res }
+
+  filterParams: &filterParams
+    query:
+      types:
+        - { wf: String }
+    memberID:
+      types:
+        - { wf: ID }
+    handle:
+      types:
+        - { wf: String }
+    name:
+      types:
+        - { wf: String }
+    labels:
+      types:
+        - { wf: LabelValue }
+    deleted:
+      types:
+        - { wf: UnsignedInteger }
+    archived:
+      types:
+        - { wf: UnsignedInteger }
+    sort:
+      types:
+        - { wf: String }
+    limit:
+      types:
+        - { wf: UnsignedInteger }
+    incTotal:
+      types:
+        - { wf: Boolean }
+    incPageNavigation:
+      types:
+        - { wf: Boolean }
+    pageCursor:
+      types:
+        - { wf: String }
+
+labels: &labels
+  users:  "step,workflow"
+
+functions:
+  lookup:
+    meta:
+      short: Role lookup
+      description: Find specific role by ID or handle
+    labels:
+      <<: *labels
+    params:
+      lookup: *lookup
+    results:
+      role: *rvRole
+
+  searchMembers:
+    meta:
+      short: Role members search
+      description: Find members for a specific roleby ID or handle
+    labels:
+      <<: *labels
+    params:
+      lookup: *lookup
+    results:
+      users:
+        <<: *rvUser
+        isArray: true
+      total: *rvTotal
+
+  eachMember:
+    kind: iterator
+    meta:
+      short: Iterate over role members
+    labels:
+      <<: *labels
+    params:
+      lookup: *lookup
+    results:
+      user:  *rvUser
+      total: *rvTotal
+
+  addMember:
+    meta:
+      short: Role membership add
+    labels:
+      <<: *labels
+    params:
+      role: *lookup
+      user: *lookupUser
+
+  removeMember:
+    meta:
+      short: Role membership remove
+    labels:
+      <<: *labels
+    params:
+      role: *lookup
+      user: *lookupUser
+
+  search:
+    meta:
+      short: Roles search
+    labels:
+      <<: *labels
+    params: *filterParams
+    results:
+      roles:
+        <<: *rvRole
+        isArray: true
+      total: *rvTotal
+
+  each:
+    kind: iterator
+    meta:
+      short: Roles
+    params: *filterParams
+    results:
+      role:  *rvRole
+      total: *rvTotal
+
+  create:
+    meta:
+      short: Role creator
+    labels:
+      <<: *labels
+      create: "step"
+    params:
+      role:
+        <<: *role
+        required: true
+    results:
+      role: *rvRole
+
+  update:
+    meta:
+      short: Role update
+    labels:
+      <<: *labels
+      update: "step"
+    params:
+      role:
+        <<: *role
+        required: true
+    results:
+      role: *rvRole
+
+  delete:
+    meta:
+      short: Role delete
+    labels:
+      <<: *labels
+      delete: "step"
+    params:
+      lookup: *lookup
+
+  recover:
+    meta:
+      short: Role recover
+    labels:
+      <<: *labels
+      recover: "step"
+    params:
+      lookup: *lookup
+
+  archive:
+    meta:
+      short: Role archive
+    labels:
+      <<: *labels
+      archive: "step"
+    params:
+      lookup: *lookup
+
+  unarchive:
+    meta:
+      short: Role unarchive
+    labels:
+      <<: *labels
+      unarchive: "step"
+    params:
+      lookup: *lookup

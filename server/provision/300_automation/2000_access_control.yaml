@@ -1,0 +1,34 @@
+allow:
+  admin:
+    corteza::automation/:
+      - grant
+      - workflow.create
+      - workflows.search
+      - triggers.search
+      - sessions.search
+
+    corteza::automation:workflow/*:
+      - read
+      - update
+      - delete
+      - undelete
+      - execute
+      - triggers.manage
+      - sessions.manage
+
+  developer:
+    corteza::automation/:
+      - grant
+      - workflow.create
+      - workflows.search
+      - triggers.search
+      - sessions.search
+
+    corteza::automation:workflow/*:
+      - read
+      - update
+      - delete
+      - undelete
+      - execute
+      - triggers.manage
+      - sessions.manage

@@ -1,0 +1,3061 @@
+package request
+
+// This file is auto-generated.
+//
+// Changes to this file may cause incorrect behavior and will be lost if
+// the code is regenerated.
+//
+// Definitions file that controls how this file is generated:
+//
+
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/cortezaproject/corteza/server/compose/types"
+	"github.com/cortezaproject/corteza/server/pkg/payload"
+	"github.com/go-chi/chi/v5"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"strings"
+	"time"
+)
+
+// dummy vars to prevent
+// unused imports complain
+var (
+	_ = chi.URLParam
+	_ = multipart.ErrMessageTooLarge
+	_ = payload.ParseUint64s
+	_ = strings.ToLower
+	_ = io.EOF
+	_ = fmt.Errorf
+	_ = json.NewEncoder
+)
+
+type (
+	// Internal API interface
+	RecordReport struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Metrics GET parameter
+		//
+		// Metrics (eg: 'SUM(money), MAX(calls)')
+		Metrics string
+
+		// Dimensions GET parameter
+		//
+		// Dimensions (eg: 'DATE(foo), status')
+		Dimensions string
+
+		// Filter GET parameter
+		//
+		// Filter (eg: 'DATE(foo) > 2010')
+		Filter string
+	}
+
+	RecordList struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Summaries GET parameter
+		//
+		// Record summaries
+		Summaries string
+
+		// Query GET parameter
+		//
+		// Record filtering query
+		Query string
+
+		// Meta GET parameter
+		//
+		// Record meta data
+		Meta map[string]any
+
+		// Deleted GET parameter
+		//
+		// Exclude (0, default), include (1) or return only (2) deleted records
+		Deleted uint
+
+		// Limit GET parameter
+		//
+		// Limit
+		Limit uint
+
+		// IncTotal GET parameter
+		//
+		// Include total records counter
+		IncTotal bool
+
+		// IncPageNavigation GET parameter
+		//
+		// Include page navigation
+		IncPageNavigation bool
+
+		// PageCursor GET parameter
+		//
+		// Page cursor
+		PageCursor string
+
+		// Sort GET parameter
+		//
+		// Sort items
+		Sort string
+	}
+
+	RecordImportInit struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Upload POST parameter
+		//
+		// File import
+		Upload *multipart.FileHeader
+	}
+
+	RecordImportRun struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// SessionID PATH parameter
+		//
+		// Import session
+		SessionID uint64 `json:",string"`
+
+		// Fields POST parameter
+		//
+		// Fields defined by import file
+		Fields json.RawMessage
+
+		// OnError POST parameter
+		//
+		// What happens if record fails to import
+		OnError string
+
+		// MultiValueDelimiter POST parameter
+		//
+		// Imported namespace multiValueDelimiter
+		MultiValueDelimiter string
+	}
+
+	RecordImportProgress struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// SessionID PATH parameter
+		//
+		// Import session
+		SessionID uint64 `json:",string"`
+	}
+
+	RecordExportInit struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Filename POST parameter
+		//
+		// Filename to use
+		Filename string
+
+		// Ext POST parameter
+		//
+		// Export format
+		Ext string
+
+		// Filter POST parameter
+		//
+		// Filtering condition
+		Filter string
+
+		// Fields POST parameter
+		//
+		// Fields to export
+		Fields []string
+
+		// Timezone POST parameter
+		//
+		// Convert times to this timezone
+		Timezone string
+
+		// MultiValueDelimiter POST parameter
+		//
+		// Multi value delimiter for CSV exports
+		MultiValueDelimiter string
+
+		// WrapMultiValue POST parameter
+		//
+		// Wrap multi value fields in brackets
+		WrapMultiValue string
+
+		// ResolveRefs POST parameter
+		//
+		//
+		ResolveRefs bool
+
+		// IncludeRefID POST parameter
+		//
+		//
+		IncludeRefID bool
+	}
+
+	RecordExportPull struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// SessionID PATH parameter
+		//
+		// Export session ID
+		SessionID uint64 `json:",string"`
+
+		// Filename PATH parameter
+		//
+		// Filename to use
+		Filename string
+
+		// Ext PATH parameter
+		//
+		// Export format
+		Ext string
+	}
+
+	RecordExport struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Filename PATH parameter
+		//
+		// Filename to use
+		Filename string
+
+		// Ext PATH parameter
+		//
+		// Export format
+		Ext string
+
+		// Filter GET parameter
+		//
+		// Filtering condition
+		Filter string
+
+		// Fields GET parameter
+		//
+		// Fields to export
+		Fields []string
+
+		// Timezone GET parameter
+		//
+		// Convert times to this timezone
+		Timezone string
+
+		// MultiValueDelimiter GET parameter
+		//
+		// Multi value delimiter for CSV exports
+		MultiValueDelimiter string
+
+		// WrapMultiValue GET parameter
+		//
+		// Wrap multi value fields in brachets
+		WrapMultiValue string
+
+		// ResolveRefs GET parameter
+		//
+		//
+		ResolveRefs bool
+
+		// IncludeRefID GET parameter
+		//
+		//
+		IncludeRefID bool
+	}
+
+	RecordExec struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Procedure PATH parameter
+		//
+		// Name of procedure to execute
+		Procedure string
+
+		// Args POST parameter
+		//
+		// Procedure arguments
+		Args []ProcedureArg
+	}
+
+	RecordCreate struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Values POST parameter
+		//
+		// Record values
+		Values types.RecordValueSet
+
+		// OwnedBy POST parameter
+		//
+		// Record Owner
+		OwnedBy uint64 `json:",string"`
+
+		// Records POST parameter
+		//
+		// Records
+		Records types.RecordBulkSet
+
+		// Meta POST parameter
+		//
+		// Record meta-data
+		Meta map[string]any
+	}
+
+	RecordRead struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// RecordID PATH parameter
+		//
+		// Record ID
+		RecordID uint64 `json:",string"`
+	}
+
+	RecordUpdate struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// RecordID PATH parameter
+		//
+		// Record ID
+		RecordID uint64 `json:",string"`
+
+		// Values POST parameter
+		//
+		// Record values
+		Values types.RecordValueSet
+
+		// OwnedBy POST parameter
+		//
+		// Record Owner
+		OwnedBy uint64 `json:",string"`
+
+		// Meta POST parameter
+		//
+		// Record meta-data
+		Meta map[string]any
+
+		// Records POST parameter
+		//
+		// Records
+		Records types.RecordBulkSet
+
+		// UpdatedAt POST parameter
+		//
+		// Last update (or creation) date
+		UpdatedAt *time.Time
+	}
+
+	RecordPatch struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Values POST parameter
+		//
+		// Fields to update and their values
+		Values types.RecordValueSet
+
+		// Query POST parameter
+		//
+		// Search query for records to operate on
+		Query string
+	}
+
+	RecordBulkDelete struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Truncate POST parameter
+		//
+		// Remove ALL records of a specified module (pending implementation)
+		Truncate bool
+
+		// Query POST parameter
+		//
+		// Search query for records to operate on
+		Query string
+	}
+
+	RecordDelete struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// RecordID PATH parameter
+		//
+		// Record ID
+		RecordID uint64 `json:",string"`
+	}
+
+	RecordUndelete struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// RecordID PATH parameter
+		//
+		// Record ID
+		RecordID uint64 `json:",string"`
+	}
+
+	RecordBulkUndelete struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Query POST parameter
+		//
+		// Search query for records to operate on
+		Query string
+	}
+
+	RecordUpload struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// RecordID POST parameter
+		//
+		// Record ID
+		RecordID uint64 `json:",string"`
+
+		// FieldName POST parameter
+		//
+		// Field name
+		FieldName string
+
+		// Upload POST parameter
+		//
+		// File to upload
+		Upload *multipart.FileHeader
+	}
+
+	RecordTriggerScript struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// RecordID PATH parameter
+		//
+		// ID
+		RecordID uint64 `json:",string"`
+
+		// Script POST parameter
+		//
+		// Script to execute
+		Script string
+
+		// Values POST parameter
+		//
+		// Record values
+		Values types.RecordValueSet
+	}
+
+	RecordTriggerScriptOnList struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// Script POST parameter
+		//
+		// Script to execute
+		Script string
+
+		// Args POST parameter
+		//
+		// Arguments to pass to the script
+		Args map[string]interface{}
+	}
+
+	RecordRevisions struct {
+		// NamespaceID PATH parameter
+		//
+		// Namespace ID
+		NamespaceID uint64 `json:",string"`
+
+		// ModuleID PATH parameter
+		//
+		// Module ID
+		ModuleID uint64 `json:",string"`
+
+		// RecordID PATH parameter
+		//
+		// ID
+		RecordID uint64 `json:",string"`
+
+		// Sort GET parameter
+		//
+		// Sort order
+		Sort string
+	}
+)
+
+// NewRecordReport request
+func NewRecordReport() *RecordReport {
+	return &RecordReport{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordReport) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"metrics":     r.Metrics,
+		"dimensions":  r.Dimensions,
+		"filter":      r.Filter,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordReport) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordReport) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordReport) GetMetrics() string {
+	return r.Metrics
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordReport) GetDimensions() string {
+	return r.Dimensions
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordReport) GetFilter() string {
+	return r.Filter
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordReport) Fill(req *http.Request) (err error) {
+
+	{
+		// GET params
+		tmp := req.URL.Query()
+
+		if val, ok := tmp["metrics"]; ok && len(val) > 0 {
+			r.Metrics, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["dimensions"]; ok && len(val) > 0 {
+			r.Dimensions, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["filter"]; ok && len(val) > 0 {
+			r.Filter, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordList request
+func NewRecordList() *RecordList {
+	return &RecordList{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID":       r.NamespaceID,
+		"moduleID":          r.ModuleID,
+		"summaries":         r.Summaries,
+		"query":             r.Query,
+		"meta":              r.Meta,
+		"deleted":           r.Deleted,
+		"limit":             r.Limit,
+		"incTotal":          r.IncTotal,
+		"incPageNavigation": r.IncPageNavigation,
+		"pageCursor":        r.PageCursor,
+		"sort":              r.Sort,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetSummaries() string {
+	return r.Summaries
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetQuery() string {
+	return r.Query
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetMeta() map[string]any {
+	return r.Meta
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetDeleted() uint {
+	return r.Deleted
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetLimit() uint {
+	return r.Limit
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetIncTotal() bool {
+	return r.IncTotal
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetIncPageNavigation() bool {
+	return r.IncPageNavigation
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetPageCursor() string {
+	return r.PageCursor
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordList) GetSort() string {
+	return r.Sort
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordList) Fill(req *http.Request) (err error) {
+
+	{
+		// GET params
+		tmp := req.URL.Query()
+
+		if val, ok := tmp["summaries"]; ok && len(val) > 0 {
+			r.Summaries, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["query"]; ok && len(val) > 0 {
+			r.Query, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["meta[]"]; ok {
+			r.Meta, err = payload.ParseMeta(val)
+			if err != nil {
+				return err
+			}
+		} else if val, ok := tmp["meta"]; ok {
+			r.Meta, err = payload.ParseMeta(val)
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["deleted"]; ok && len(val) > 0 {
+			r.Deleted, err = payload.ParseUint(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["limit"]; ok && len(val) > 0 {
+			r.Limit, err = payload.ParseUint(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["incTotal"]; ok && len(val) > 0 {
+			r.IncTotal, err = payload.ParseBool(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["incPageNavigation"]; ok && len(val) > 0 {
+			r.IncPageNavigation, err = payload.ParseBool(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["pageCursor"]; ok && len(val) > 0 {
+			r.PageCursor, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["sort"]; ok && len(val) > 0 {
+			r.Sort, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordImportInit request
+func NewRecordImportInit() *RecordImportInit {
+	return &RecordImportInit{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportInit) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"upload":      r.Upload,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportInit) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportInit) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportInit) GetUpload() *multipart.FileHeader {
+	return r.Upload
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordImportInit) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			// Ignoring upload as its handled in the POST params section
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		if _, r.Upload, err = req.FormFile("upload"); err != nil {
+			return fmt.Errorf("error processing uploaded file: %w", err)
+		}
+
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordImportRun request
+func NewRecordImportRun() *RecordImportRun {
+	return &RecordImportRun{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportRun) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID":         r.NamespaceID,
+		"moduleID":            r.ModuleID,
+		"sessionID":           r.SessionID,
+		"fields":              r.Fields,
+		"onError":             r.OnError,
+		"multiValueDelimiter": r.MultiValueDelimiter,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportRun) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportRun) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportRun) GetSessionID() uint64 {
+	return r.SessionID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportRun) GetFields() json.RawMessage {
+	return r.Fields
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportRun) GetOnError() string {
+	return r.OnError
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportRun) GetMultiValueDelimiter() string {
+	return r.MultiValueDelimiter
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordImportRun) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["fields"]; ok && len(val) > 0 {
+				r.Fields, err = json.RawMessage(val[0]), nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["onError"]; ok && len(val) > 0 {
+				r.OnError, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["multiValueDelimiter"]; ok && len(val) > 0 {
+				r.MultiValueDelimiter, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		if val, ok := req.Form["fields"]; ok && len(val) > 0 {
+			r.Fields, err = json.RawMessage(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["onError"]; ok && len(val) > 0 {
+			r.OnError, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["multiValueDelimiter"]; ok && len(val) > 0 {
+			r.MultiValueDelimiter, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "sessionID")
+		r.SessionID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordImportProgress request
+func NewRecordImportProgress() *RecordImportProgress {
+	return &RecordImportProgress{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportProgress) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"sessionID":   r.SessionID,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportProgress) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportProgress) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordImportProgress) GetSessionID() uint64 {
+	return r.SessionID
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordImportProgress) Fill(req *http.Request) (err error) {
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "sessionID")
+		r.SessionID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordExportInit request
+func NewRecordExportInit() *RecordExportInit {
+	return &RecordExportInit{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID":         r.NamespaceID,
+		"moduleID":            r.ModuleID,
+		"filename":            r.Filename,
+		"ext":                 r.Ext,
+		"filter":              r.Filter,
+		"fields":              r.Fields,
+		"timezone":            r.Timezone,
+		"multiValueDelimiter": r.MultiValueDelimiter,
+		"wrapMultiValue":      r.WrapMultiValue,
+		"resolveRefs":         r.ResolveRefs,
+		"includeRefID":        r.IncludeRefID,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetFilename() string {
+	return r.Filename
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetExt() string {
+	return r.Ext
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetFilter() string {
+	return r.Filter
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetFields() []string {
+	return r.Fields
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetTimezone() string {
+	return r.Timezone
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetMultiValueDelimiter() string {
+	return r.MultiValueDelimiter
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetWrapMultiValue() string {
+	return r.WrapMultiValue
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetResolveRefs() bool {
+	return r.ResolveRefs
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportInit) GetIncludeRefID() bool {
+	return r.IncludeRefID
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordExportInit) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["filename"]; ok && len(val) > 0 {
+				r.Filename, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["ext"]; ok && len(val) > 0 {
+				r.Ext, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["filter"]; ok && len(val) > 0 {
+				r.Filter, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["timezone"]; ok && len(val) > 0 {
+				r.Timezone, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["multiValueDelimiter"]; ok && len(val) > 0 {
+				r.MultiValueDelimiter, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["wrapMultiValue"]; ok && len(val) > 0 {
+				r.WrapMultiValue, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["resolveRefs"]; ok && len(val) > 0 {
+				r.ResolveRefs, err = payload.ParseBool(val[0]), nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["includeRefID"]; ok && len(val) > 0 {
+				r.IncludeRefID, err = payload.ParseBool(val[0]), nil
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		if val, ok := req.Form["filename"]; ok && len(val) > 0 {
+			r.Filename, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["ext"]; ok && len(val) > 0 {
+			r.Ext, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["filter"]; ok && len(val) > 0 {
+			r.Filter, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		//if val, ok := req.Form["fields[]"]; ok && len(val) > 0  {
+		//    r.Fields, err = val, nil
+		//    if err != nil {
+		//        return err
+		//    }
+		//}
+
+		if val, ok := req.Form["timezone"]; ok && len(val) > 0 {
+			r.Timezone, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["multiValueDelimiter"]; ok && len(val) > 0 {
+			r.MultiValueDelimiter, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["wrapMultiValue"]; ok && len(val) > 0 {
+			r.WrapMultiValue, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["resolveRefs"]; ok && len(val) > 0 {
+			r.ResolveRefs, err = payload.ParseBool(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["includeRefID"]; ok && len(val) > 0 {
+			r.IncludeRefID, err = payload.ParseBool(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordExportPull request
+func NewRecordExportPull() *RecordExportPull {
+	return &RecordExportPull{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportPull) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"sessionID":   r.SessionID,
+		"filename":    r.Filename,
+		"ext":         r.Ext,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportPull) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportPull) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportPull) GetSessionID() uint64 {
+	return r.SessionID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportPull) GetFilename() string {
+	return r.Filename
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExportPull) GetExt() string {
+	return r.Ext
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordExportPull) Fill(req *http.Request) (err error) {
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "sessionID")
+		r.SessionID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "filename")
+		r.Filename, err = val, nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "ext")
+		r.Ext, err = val, nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordExport request
+func NewRecordExport() *RecordExport {
+	return &RecordExport{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID":         r.NamespaceID,
+		"moduleID":            r.ModuleID,
+		"filename":            r.Filename,
+		"ext":                 r.Ext,
+		"filter":              r.Filter,
+		"fields":              r.Fields,
+		"timezone":            r.Timezone,
+		"multiValueDelimiter": r.MultiValueDelimiter,
+		"wrapMultiValue":      r.WrapMultiValue,
+		"resolveRefs":         r.ResolveRefs,
+		"includeRefID":        r.IncludeRefID,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetFilename() string {
+	return r.Filename
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetExt() string {
+	return r.Ext
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetFilter() string {
+	return r.Filter
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetFields() []string {
+	return r.Fields
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetTimezone() string {
+	return r.Timezone
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetMultiValueDelimiter() string {
+	return r.MultiValueDelimiter
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetWrapMultiValue() string {
+	return r.WrapMultiValue
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetResolveRefs() bool {
+	return r.ResolveRefs
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExport) GetIncludeRefID() bool {
+	return r.IncludeRefID
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordExport) Fill(req *http.Request) (err error) {
+
+	{
+		// GET params
+		tmp := req.URL.Query()
+
+		if val, ok := tmp["filter"]; ok && len(val) > 0 {
+			r.Filter, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["fields[]"]; ok {
+			r.Fields, err = val, nil
+			if err != nil {
+				return err
+			}
+		} else if val, ok := tmp["fields"]; ok {
+			r.Fields, err = val, nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["timezone"]; ok && len(val) > 0 {
+			r.Timezone, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["multiValueDelimiter"]; ok && len(val) > 0 {
+			r.MultiValueDelimiter, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["wrapMultiValue"]; ok && len(val) > 0 {
+			r.WrapMultiValue, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["resolveRefs"]; ok && len(val) > 0 {
+			r.ResolveRefs, err = payload.ParseBool(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+		if val, ok := tmp["includeRefID"]; ok && len(val) > 0 {
+			r.IncludeRefID, err = payload.ParseBool(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "filename")
+		r.Filename, err = val, nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "ext")
+		r.Ext, err = val, nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordExec request
+func NewRecordExec() *RecordExec {
+	return &RecordExec{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExec) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"procedure":   r.Procedure,
+		"args":        r.Args,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExec) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExec) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExec) GetProcedure() string {
+	return r.Procedure
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordExec) GetArgs() []ProcedureArg {
+	return r.Args
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordExec) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		//if val, ok := req.Form["args[]"]; ok && len(val) > 0  {
+		//    r.Args, err = []ProcedureArg(val), nil
+		//    if err != nil {
+		//        return err
+		//    }
+		//}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "procedure")
+		r.Procedure, err = val, nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordCreate request
+func NewRecordCreate() *RecordCreate {
+	return &RecordCreate{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordCreate) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"values":      r.Values,
+		"ownedBy":     r.OwnedBy,
+		"records":     r.Records,
+		"meta":        r.Meta,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordCreate) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordCreate) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordCreate) GetValues() types.RecordValueSet {
+	return r.Values
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordCreate) GetOwnedBy() uint64 {
+	return r.OwnedBy
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordCreate) GetRecords() types.RecordBulkSet {
+	return r.Records
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordCreate) GetMeta() map[string]any {
+	return r.Meta
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordCreate) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["ownedBy"]; ok && len(val) > 0 {
+				r.OwnedBy, err = payload.ParseUint64(val[0]), nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["meta[]"]; ok {
+				r.Meta, err = payload.ParseMeta(val)
+				if err != nil {
+					return err
+				}
+			} else if val, ok := req.MultipartForm.Value["meta"]; ok {
+				r.Meta, err = payload.ParseMeta(val)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		//if val, ok := req.Form["values[]"]; ok && len(val) > 0  {
+		//    r.Values, err = types.RecordValueSet(val), nil
+		//    if err != nil {
+		//        return err
+		//    }
+		//}
+
+		if val, ok := req.Form["ownedBy"]; ok && len(val) > 0 {
+			r.OwnedBy, err = payload.ParseUint64(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+
+		//if val, ok := req.Form["records[]"]; ok && len(val) > 0  {
+		//    r.Records, err = types.RecordBulkSet(val), nil
+		//    if err != nil {
+		//        return err
+		//    }
+		//}
+
+		if val, ok := req.Form["meta[]"]; ok {
+			r.Meta, err = payload.ParseMeta(val)
+			if err != nil {
+				return err
+			}
+		} else if val, ok := req.Form["meta"]; ok {
+			r.Meta, err = payload.ParseMeta(val)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordRead request
+func NewRecordRead() *RecordRead {
+	return &RecordRead{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordRead) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"recordID":    r.RecordID,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordRead) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordRead) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordRead) GetRecordID() uint64 {
+	return r.RecordID
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordRead) Fill(req *http.Request) (err error) {
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "recordID")
+		r.RecordID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordUpdate request
+func NewRecordUpdate() *RecordUpdate {
+	return &RecordUpdate{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpdate) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"recordID":    r.RecordID,
+		"values":      r.Values,
+		"ownedBy":     r.OwnedBy,
+		"meta":        r.Meta,
+		"records":     r.Records,
+		"updatedAt":   r.UpdatedAt,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpdate) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpdate) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpdate) GetRecordID() uint64 {
+	return r.RecordID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpdate) GetValues() types.RecordValueSet {
+	return r.Values
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpdate) GetOwnedBy() uint64 {
+	return r.OwnedBy
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpdate) GetMeta() map[string]any {
+	return r.Meta
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpdate) GetRecords() types.RecordBulkSet {
+	return r.Records
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpdate) GetUpdatedAt() *time.Time {
+	return r.UpdatedAt
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordUpdate) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["ownedBy"]; ok && len(val) > 0 {
+				r.OwnedBy, err = payload.ParseUint64(val[0]), nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["meta[]"]; ok {
+				r.Meta, err = payload.ParseMeta(val)
+				if err != nil {
+					return err
+				}
+			} else if val, ok := req.MultipartForm.Value["meta"]; ok {
+				r.Meta, err = payload.ParseMeta(val)
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["updatedAt"]; ok && len(val) > 0 {
+				r.UpdatedAt, err = payload.ParseISODatePtrWithErr(val[0])
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		//if val, ok := req.Form["values[]"]; ok && len(val) > 0  {
+		//    r.Values, err = types.RecordValueSet(val), nil
+		//    if err != nil {
+		//        return err
+		//    }
+		//}
+
+		if val, ok := req.Form["ownedBy"]; ok && len(val) > 0 {
+			r.OwnedBy, err = payload.ParseUint64(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["meta[]"]; ok {
+			r.Meta, err = payload.ParseMeta(val)
+			if err != nil {
+				return err
+			}
+		} else if val, ok := req.Form["meta"]; ok {
+			r.Meta, err = payload.ParseMeta(val)
+			if err != nil {
+				return err
+			}
+		}
+
+		//if val, ok := req.Form["records[]"]; ok && len(val) > 0  {
+		//    r.Records, err = types.RecordBulkSet(val), nil
+		//    if err != nil {
+		//        return err
+		//    }
+		//}
+
+		if val, ok := req.Form["updatedAt"]; ok && len(val) > 0 {
+			r.UpdatedAt, err = payload.ParseISODatePtrWithErr(val[0])
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "recordID")
+		r.RecordID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordPatch request
+func NewRecordPatch() *RecordPatch {
+	return &RecordPatch{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordPatch) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"values":      r.Values,
+		"query":       r.Query,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordPatch) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordPatch) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordPatch) GetValues() types.RecordValueSet {
+	return r.Values
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordPatch) GetQuery() string {
+	return r.Query
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordPatch) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["query"]; ok && len(val) > 0 {
+				r.Query, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		//if val, ok := req.Form["values[]"]; ok && len(val) > 0  {
+		//    r.Values, err = types.RecordValueSet(val), nil
+		//    if err != nil {
+		//        return err
+		//    }
+		//}
+
+		if val, ok := req.Form["query"]; ok && len(val) > 0 {
+			r.Query, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordBulkDelete request
+func NewRecordBulkDelete() *RecordBulkDelete {
+	return &RecordBulkDelete{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordBulkDelete) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"truncate":    r.Truncate,
+		"query":       r.Query,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordBulkDelete) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordBulkDelete) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordBulkDelete) GetTruncate() bool {
+	return r.Truncate
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordBulkDelete) GetQuery() string {
+	return r.Query
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordBulkDelete) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["truncate"]; ok && len(val) > 0 {
+				r.Truncate, err = payload.ParseBool(val[0]), nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["query"]; ok && len(val) > 0 {
+				r.Query, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		if val, ok := req.Form["truncate"]; ok && len(val) > 0 {
+			r.Truncate, err = payload.ParseBool(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["query"]; ok && len(val) > 0 {
+			r.Query, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordDelete request
+func NewRecordDelete() *RecordDelete {
+	return &RecordDelete{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordDelete) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"recordID":    r.RecordID,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordDelete) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordDelete) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordDelete) GetRecordID() uint64 {
+	return r.RecordID
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordDelete) Fill(req *http.Request) (err error) {
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "recordID")
+		r.RecordID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordUndelete request
+func NewRecordUndelete() *RecordUndelete {
+	return &RecordUndelete{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUndelete) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"recordID":    r.RecordID,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUndelete) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUndelete) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUndelete) GetRecordID() uint64 {
+	return r.RecordID
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordUndelete) Fill(req *http.Request) (err error) {
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "recordID")
+		r.RecordID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordBulkUndelete request
+func NewRecordBulkUndelete() *RecordBulkUndelete {
+	return &RecordBulkUndelete{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordBulkUndelete) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"query":       r.Query,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordBulkUndelete) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordBulkUndelete) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordBulkUndelete) GetQuery() string {
+	return r.Query
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordBulkUndelete) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["query"]; ok && len(val) > 0 {
+				r.Query, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		if val, ok := req.Form["query"]; ok && len(val) > 0 {
+			r.Query, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordUpload request
+func NewRecordUpload() *RecordUpload {
+	return &RecordUpload{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpload) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"recordID":    r.RecordID,
+		"fieldName":   r.FieldName,
+		"upload":      r.Upload,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpload) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpload) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpload) GetRecordID() uint64 {
+	return r.RecordID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpload) GetFieldName() string {
+	return r.FieldName
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordUpload) GetUpload() *multipart.FileHeader {
+	return r.Upload
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordUpload) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["recordID"]; ok && len(val) > 0 {
+				r.RecordID, err = payload.ParseUint64(val[0]), nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["fieldName"]; ok && len(val) > 0 {
+				r.FieldName, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+			// Ignoring upload as its handled in the POST params section
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		if val, ok := req.Form["recordID"]; ok && len(val) > 0 {
+			r.RecordID, err = payload.ParseUint64(val[0]), nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["fieldName"]; ok && len(val) > 0 {
+			r.FieldName, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if _, r.Upload, err = req.FormFile("upload"); err != nil {
+			return fmt.Errorf("error processing uploaded file: %w", err)
+		}
+
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordTriggerScript request
+func NewRecordTriggerScript() *RecordTriggerScript {
+	return &RecordTriggerScript{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScript) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"recordID":    r.RecordID,
+		"script":      r.Script,
+		"values":      r.Values,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScript) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScript) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScript) GetRecordID() uint64 {
+	return r.RecordID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScript) GetScript() string {
+	return r.Script
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScript) GetValues() types.RecordValueSet {
+	return r.Values
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordTriggerScript) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["script"]; ok && len(val) > 0 {
+				r.Script, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		if val, ok := req.Form["script"]; ok && len(val) > 0 {
+			r.Script, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		//if val, ok := req.Form["values[]"]; ok && len(val) > 0  {
+		//    r.Values, err = types.RecordValueSet(val), nil
+		//    if err != nil {
+		//        return err
+		//    }
+		//}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "recordID")
+		r.RecordID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordTriggerScriptOnList request
+func NewRecordTriggerScriptOnList() *RecordTriggerScriptOnList {
+	return &RecordTriggerScriptOnList{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScriptOnList) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"script":      r.Script,
+		"args":        r.Args,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScriptOnList) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScriptOnList) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScriptOnList) GetScript() string {
+	return r.Script
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordTriggerScriptOnList) GetArgs() map[string]interface{} {
+	return r.Args
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordTriggerScriptOnList) Fill(req *http.Request) (err error) {
+
+	if strings.HasPrefix(strings.ToLower(req.Header.Get("content-type")), "application/json") {
+		err = json.NewDecoder(req.Body).Decode(r)
+
+		switch {
+		case err == io.EOF:
+			err = nil
+		case err != nil:
+			return fmt.Errorf("error parsing http request body: %w", err)
+		}
+	}
+
+	{
+		// Caching 32MB to memory, the rest to disk
+		if err = req.ParseMultipartForm(32 << 20); err != nil && err != http.ErrNotMultipart {
+			return err
+		} else if err == nil {
+			// Multipart params
+
+			if val, ok := req.MultipartForm.Value["script"]; ok && len(val) > 0 {
+				r.Script, err = val[0], nil
+				if err != nil {
+					return err
+				}
+			}
+
+			if val, ok := req.MultipartForm.Value["args[]"]; ok {
+				r.Args, err = parseMapStringInterface(val)
+				if err != nil {
+					return err
+				}
+			} else if val, ok := req.MultipartForm.Value["args"]; ok {
+				r.Args, err = parseMapStringInterface(val)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	{
+		if err = req.ParseForm(); err != nil {
+			return err
+		}
+
+		// POST params
+
+		if val, ok := req.Form["script"]; ok && len(val) > 0 {
+			r.Script, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+
+		if val, ok := req.Form["args[]"]; ok {
+			r.Args, err = parseMapStringInterface(val)
+			if err != nil {
+				return err
+			}
+		} else if val, ok := req.Form["args"]; ok {
+			r.Args, err = parseMapStringInterface(val)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}
+
+// NewRecordRevisions request
+func NewRecordRevisions() *RecordRevisions {
+	return &RecordRevisions{}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordRevisions) Auditable() map[string]interface{} {
+	return map[string]interface{}{
+		"namespaceID": r.NamespaceID,
+		"moduleID":    r.ModuleID,
+		"recordID":    r.RecordID,
+		"sort":        r.Sort,
+	}
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordRevisions) GetNamespaceID() uint64 {
+	return r.NamespaceID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordRevisions) GetModuleID() uint64 {
+	return r.ModuleID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordRevisions) GetRecordID() uint64 {
+	return r.RecordID
+}
+
+// Auditable returns all auditable/loggable parameters
+func (r RecordRevisions) GetSort() string {
+	return r.Sort
+}
+
+// Fill processes request and fills internal variables
+func (r *RecordRevisions) Fill(req *http.Request) (err error) {
+
+	{
+		// GET params
+		tmp := req.URL.Query()
+
+		if val, ok := tmp["sort"]; ok && len(val) > 0 {
+			r.Sort, err = val[0], nil
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	{
+		var val string
+		// path params
+
+		val = chi.URLParam(req, "namespaceID")
+		r.NamespaceID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "moduleID")
+		r.ModuleID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+		val = chi.URLParam(req, "recordID")
+		r.RecordID, err = payload.ParseUint64(val), nil
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return err
+}

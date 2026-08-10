@@ -1,0 +1,67 @@
+# List of loggable service actions
+
+resource: system:filter
+service: apigwFilter
+
+# Default sensitivity for actions
+defaultActionSeverity: notice
+
+# default severity for errors
+defaultErrorSeverity: error
+
+import:
+  - github.com/cortezaproject/corteza/server/system/types
+
+props:
+  - name: filter
+    type: "*types.ApigwFilter"
+    fields: [ ID, ref ]
+  - name: search
+    type: "*types.ApigwFilterFilter"
+    fields: [ kind ]
+
+actions:
+  - action: search
+    log: "searched for filter"
+    severity: info
+
+  - action: lookup
+    log: "looked-up for a {{filter}}"
+    severity: info
+
+  - action: create
+    log: "created {{filter}}"
+
+  - action: update
+    log: "updated {{filter}}"
+
+  - action: delete
+    log: "deleted {{filter}}"
+
+  - action: undelete
+    log: "undeleted {{filter}}"
+
+errors:
+  - error: notFound
+    message: "filter not found"
+    severity: warning
+
+  - error: invalidID
+    message: "invalid ID"
+    severity: warning
+
+  - error: invalidRoute
+    message: "invalid route"
+    severity: warning
+
+  - error: staleData
+    message: "filter was modified by someone else or by a workflow after you've opened it. Please refresh to see the latest updated version"
+    severity: warning
+
+  - error: asyncRouteTooManyProcessers
+    message: "processer already exists for this async route"
+    log: "failed to add {{filter}}; too many processers, async route"
+
+  - error: asyncRouteTooManyAfterFilters
+    message: "no after filters are allowd for this async route"
+    log: "failed to add {{filter}}; too many afterfilters, async route"

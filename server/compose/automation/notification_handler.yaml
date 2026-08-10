@@ -1,0 +1,64 @@
+name: notification
+
+snippets:
+  lookupUser: &lookupUser
+    required: true
+    types:
+      - { wf: ID     }
+      - { wf: Handle }
+      - { wf: String, suffix: email }
+
+functions:
+  sendRecord:
+    meta:
+      short: Send record notification
+      description: Sends a notification that links to a specific record
+    params:
+      recipient: *lookupUser
+      title:
+        types:
+          - { wf: String }
+        required: true
+        description: The title of the record notification
+      description:
+        types:
+          - { wf: String }
+        required: false
+        description: Optional description for the record notification
+      module:
+        required: true
+        types:
+          - { wf: ID }
+          - { wf: Handle }
+        description: The module ID of the record
+      namespace:
+        required: true
+        types:
+          - { wf: ID }
+          - { wf: Handle }
+        description: The namespace ID of the record
+      record:
+        required: false
+        types:
+          - { wf: ID }
+        description: The record ID to link to
+      openMode:
+        types:
+          - { wf: String }
+        required: false
+        description: How to open the record - "modal", "newTab", or "sameTab" (default)
+        meta:
+          visual:
+            input:
+              type: select
+              properties:
+                options:
+                  - { value: 'sameTab', text: 'Open link in the same tab' }
+                  - { value: 'newTab', text: 'Open link in a new tab' }
+                  - { value: 'modal', text: 'Open in a modal' }
+              default: 'modal'
+      edit:
+        types:
+          - { wf: Boolean }
+        required: false
+        description: Whether to open the record in edit mode (default is false)

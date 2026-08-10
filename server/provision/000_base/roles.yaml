@@ -1,0 +1,72 @@
+roles:
+  # bypass and other system roles are
+  # programmatically (re)created on server start
+  admin:
+    name: Administrator
+
+  security-admin:
+    name: Security administrator
+
+  low-code-admin:
+    name: Namespace administrator
+
+  owner:
+    name: Owner
+    meta:
+      description: |-
+        Automatically assigned to resource owner
+        Applicable to compose records, auth clients and workflows
+
+      context:
+        expr: resource.ownedBy == userID
+        resourceType:
+          - corteza::compose:record
+          - corteza::system:authClient
+          - corteza::automation:workflow
+
+  creator:
+    name: Creator
+    meta:
+      description: |-
+        Automatically assigned to user created the resource.
+        Applicable on records, auth clients and workflows
+      context:
+        expr: resource.createdBy == userID
+        resourceType:
+          - corteza::compose:record
+          - corteza::system:authClient
+          - corteza::automation:workflow
+
+  updater:
+    name: Updater
+    meta:
+      description: |-
+        Automatically assigned to user that was the last to update the resource.
+        Applicable to compose records, auth clients and workflows
+
+      context:
+        expr: resource.updatedBy == userID
+        resourceType:
+          - corteza::compose:record
+          - corteza::system:authClient
+          - corteza::automation:workflow
+
+  deleter:
+    name: Deleter
+    meta:
+      description: |-
+        Automatically assigned to user that was the last to update the resource.
+        Applicable to compose records, auth clients and workflows
+
+      context:
+        expr: resource.deletedBy == userID
+        resourceType:
+          - corteza::compose:record
+          - corteza::system:authClient
+          - corteza::automation:workflow
+
+  data-privacy-officer:
+    name: Data Privacy Officer
+    meta:
+      description: |-
+        Users that are allowed to view and manage privacy requests.

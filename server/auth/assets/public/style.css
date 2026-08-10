@@ -1,0 +1,52 @@
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto;
+  overflow: auto;
+}
+
+label {
+  color: var(--primary);
+}
+
+.logo {
+  max-height: 45px;
+  max-width: 25%;
+}
+
+.version {
+  bottom: 0;
+  right: 0;
+}
+
+.header {
+  background-color: var(--light) !important;
+}
+
+/* Navigation */
+.nav-item.active {
+  border-bottom: 4px solid var(--primary);
+}
+
+.login-title {
+  font-size: 25px;
+}
+
+.auth {
+  width: 100%;
+  max-width: 650px;
+  margin: auto;
+  padding: 0 20px;
+}
+
+.footer {
+  margin-top: auto;
+}
+
+.bi::before {
+  vertical-align: middle;
+}

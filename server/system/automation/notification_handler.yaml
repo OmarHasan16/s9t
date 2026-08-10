@@ -1,0 +1,27 @@
+name: notification
+
+snippets:
+  lookupUser: &lookupUser
+    required: true
+    types:
+      - { wf: ID     }
+      - { wf: Handle }
+      - { wf: String, suffix: email }
+
+functions:
+  send:
+    meta:
+      short: Send simple notification
+      description: Sends a simple notification with title and description to a user
+    params:
+      recipient: *lookupUser
+      title:
+        types:
+          - { wf: String }
+        required: true
+        description: The title of the simple notification
+      description:
+        types:
+          - { wf: String }
+        required: false
+        description: Optional description for the simple notification

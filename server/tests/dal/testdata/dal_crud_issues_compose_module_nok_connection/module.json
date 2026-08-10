@@ -1,0 +1,34 @@
+{
+  "name": "internal_non_partitioned",
+  "handle": "internal_non_partitioned",
+
+  "config": {
+    "dal": {
+      "connectionID": "42",
+      "operations": [],
+      "partitioned": false
+    },
+
+    "privacy": {
+      "sensitivityLevelID": "0",
+      "usageDisclosure": "A"
+    }
+  },
+
+
+  "fields": [
+    {
+      "name": "f1",
+      "kind": "String",
+
+      "privacy": {
+        "sensitivityLevelID": "0",
+        "usageDisclosure": "A"
+      }
+    },
+    {
+      "name": "f2",
+      "kind": "String"
+    }
+  ]
+}

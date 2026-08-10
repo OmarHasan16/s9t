@@ -1,0 +1,36 @@
+{
+  "name": "internal_non_partitioned",
+  "handle": "internal_non_partitioned",
+
+  "config": {
+    "dal": {
+      "connectionID": "0",
+      "operations": [],
+      "partitioned": false
+    },
+    "privacy": {
+      "sensitivityLevelID": "42",
+      "usageDisclosure": "A"
+    }
+  },
+
+  "fields": [
+    {
+      "name": "name",
+      "kind": "String",
+
+      "privacy": {
+        "sensitivityLevelID": "0",
+        "usageDisclosure": "A"
+      }
+    },
+    {
+      "name": "email",
+      "kind": "Email"
+    },
+    {
+      "name": "a_number",
+      "kind": "Number"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+apigateway:
+  - endpoint: /test
+    method: GET
+    enabled: true
+    filters:
+      - ref: "header"
+        kind: "prefilter"
+        enabled: true
+        params:
+          expr: "Token == \"super-secret-token\""
+
+  - endpoint: /test-hyphen
+    method: GET
+    enabled: true
+    filters:
+      - ref: "header"
+        kind: "prefilter"
+        enabled: true
+        params:
+          expr: "Accept-Language == \"fr-CH, fr;q=0.9\""

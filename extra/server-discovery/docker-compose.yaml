@@ -1,0 +1,71 @@
+version: "3"
+services:
+  opensearch-node:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: opensearch-node
+    restart: always
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node
+      - node.roles=cluster_manager,data,ml
+      - discovery.seed_hosts=opensearch-node
+      - cluster.initial_cluster_manager_nodes=opensearch-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms6g -Xmx6g
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=admin
+
+      # Enable security with demo certificates
+      - plugins.security.ssl.transport.pemcert_filepath=esnode.pem
+      - plugins.security.ssl.transport.pemkey_filepath=esnode-key.pem
+      - plugins.security.ssl.transport.pemtrustedcas_filepath=root-ca.pem
+      - plugins.security.ssl.transport.enforce_hostname_verification=false
+      - plugins.security.ssl.http.enabled=true
+      - plugins.security.ssl.http.pemcert_filepath=esnode.pem
+      - plugins.security.ssl.http.pemkey_filepath=esnode-key.pem
+      - plugins.security.ssl.http.pemtrustedcas_filepath=root-ca.pem
+      - plugins.security.allow_unsafe_democertificates=true
+      - plugins.security.allow_default_init_securityindex=true
+
+      # ML Commons settings
+      - plugins.ml_commons.only_run_on_ml_node=false
+      - plugins.ml_commons.model_access_control_enabled=false
+      - plugins.ml_commons.native_memory_threshold=99
+      - plugins.ml_commons.max_model_on_node=10
+    mem_limit: 8g
+    memswap_limit: 8g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+      - 9600:9600
+    networks:
+      - opensearch-net
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: opensearch-dashboards
+    restart: always
+    ports:
+      - 5601:5601
+    environment:
+      - OPENSEARCH_HOSTS=https://opensearch-node:9200
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=admin
+      - OPENSEARCH_SSL_VERIFICATIONMODE=none
+    depends_on:
+      - opensearch-node
+    networks:
+      - opensearch-net
+
+volumes:
+  opensearch-data:
+
+networks:
+  opensearch-net:

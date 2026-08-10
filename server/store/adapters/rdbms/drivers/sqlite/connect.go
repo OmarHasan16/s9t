@@ -1,0 +1,174 @@
+package sqlite
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/cortezaproject/corteza/server/store/adapters/rdbms/dal"
+
+	"github.com/cortezaproject/corteza/server/pkg/logger"
+	"github.com/cortezaproject/corteza/server/store"
+	"github.com/cortezaproject/corteza/server/store/adapters/rdbms"
+	"github.com/cortezaproject/corteza/server/store/adapters/rdbms/instrumentation"
+	"github.com/jmoiron/sqlx"
+	"github.com/mattn/go-sqlite3"
+	"github.com/ngrok/sqlmw"
+)
+
+const (
+	// base for our schemas
+	SCHEMA = "sqlite3"
+
+	// alternative s hema with custom driver
+	altSchema = SCHEMA + "+alt"
+
+	// debug schema with verbose logging
+	debugSchema = SCHEMA + "+debug"
+)
+
+var (
+	// make a custom driver with REGEX support
+	customDriver = &sqlite3.SQLiteDriver{
+		ConnectHook: func(conn *sqlite3.SQLiteConn) (err error) {
+			// register regexp function and use Go's regexp fn
+			if err = conn.RegisterFunc("regexp", fnRegExp, true); err != nil {
+				return
+			}
+
+			if err = conn.RegisterFunc("json_array_contains", sqliteFuncJsonArrayContains, true); err != nil {
+				return
+			}
+
+			return
+		},
+	}
+)
+
+func fnRegExp(pattern string, s string) (matched bool, err error) {
+	matched, err = regexp.MatchString(pattern, s)
+	return
+}
+
+func init() {
+	// register alter driver
+	sql.Register(altSchema, customDriver)
+	// register debug driver
+	sql.Register(debugSchema, sqlmw.Driver(customDriver, instrumentation.Debug()))
+
+	store.Register(Connect, SCHEMA, altSchema, debugSchema)
+}
+
+func Connect(ctx context.Context, dsn string) (_ store.Storer, err error) {
+	var (
+		db  *sqlx.DB
+		cfg *rdbms.ConnConfig
+	)
+
+	if cfg, err = NewConfig(dsn); err != nil {
+		return
+	}
+
+	if db, err = rdbms.Connect(ctx, logger.Default(), cfg); err != nil {
+		return
+	}
+
+	s := &rdbms.Store{
+		DB: db,
+
+		DAL: dal.Connection(db, Dialect(), DataDefiner(cfg.DBName, db)),
+
+		Dialect:      Dialect(),
+		ErrorHandler: errorHandler,
+
+		TxRetryLimit: -1,
+		DataDefiner:  DataDefiner(cfg.DBName, db),
+
+		Ping: db.PingContext,
+	}
+
+	s.SetDefaults()
+
+	return s, nil
+}
+
+func ConnectInMemory(ctx context.Context) (s store.Storer, err error) {
+	return Connect(ctx, altSchema+"://file::memory:?cache=shared&mode=memory")
+}
+
+func ConnectInMemoryWithDebug(ctx context.Context) (s store.Storer, err error) {
+	return Connect(ctx, debugSchema+"://file::memory:?cache=shared&mode=memory")
+}
+
+// NewConfig validates given DSN and ensures
+// params are present and correct
+func NewConfig(in string) (*rdbms.ConnConfig, error) {
+	const (
+		schemaDel = "://"
+	)
+
+	var (
+		c = &rdbms.ConnConfig{
+			DriverName: altSchema,
+		}
+	)
+
+	switch {
+	case strings.HasPrefix(in, SCHEMA+schemaDel), strings.HasPrefix(in, altSchema+schemaDel):
+	// no special handling
+	case strings.HasPrefix(in, debugSchema+schemaDel):
+		c.DriverName = debugSchema
+	default:
+		return nil, fmt.Errorf("expecting valid schema (sqlite3://) at the beginning of the DSN")
+	}
+
+	// reassemble DSN with base schema
+	c.DataSourceName = in[strings.Index(in, schemaDel)+len(schemaDel):]
+
+	// Nothing to mask for sqlite3 DSN
+	c.MaskedDSN = c.DataSourceName
+
+	// Set to zero
+	// Otherwise SQLite (in-memory) disconnects
+	// and all tables and data is lost
+	c.ConnMaxLifetime = 0
+
+	c.SetDefaults()
+
+	return c, nil
+}
+
+// Transactions are disabled on SQLite
+//func txRetryErrHandler(try int, err error) bool {
+//	for errors.Unwrap(err) != nil {
+//		err = errors.Unwrap(err)
+//	}
+//
+//	var sqliteErr, ok = err.(sqlite3.Error)
+//	if !ok {
+//		return false
+//	}
+//
+//	switch sqliteErr.Code {
+//	case sqlite3.ErrLocked:
+//		return true
+//
+//	}
+//
+//	return false
+//}
+
+func errorHandler(err error) error {
+	if err != nil {
+		if implErr, ok := err.(sqlite3.Error); ok {
+			switch implErr.ExtendedCode {
+			case sqlite3.ErrConstraintUnique:
+				return store.ErrNotUnique.Wrap(implErr)
+			}
+		}
+	}
+
+	return err
+}

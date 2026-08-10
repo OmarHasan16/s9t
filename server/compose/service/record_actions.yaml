@@ -1,0 +1,241 @@
+# List of loggable service actions
+
+resource: compose:record
+service: record
+
+# Default sensitivity for actions
+defaultActionSeverity: notice
+
+# default severity for errors
+defaultErrorSeverity: error
+
+import:
+  - github.com/cortezaproject/corteza/server/compose/types
+
+props:
+  - name: record
+    type: "*types.Record"
+    fields: [ ID, moduleID, namespaceID, ownedBy ]
+  - name: changed
+    type: "*types.Record"
+    fields: [ ID, moduleID, namespaceID, ownedBy ]
+  - name: filter
+    type: "*types.RecordFilter"
+    fields: [ query, namespaceID, moduleID, deleted, sort, limit ]
+  - name: namespace
+    type: "*types.Namespace"
+    fields: [ name, slug, ID ]
+  - name: module
+    type: "*types.Module"
+    fields: [ name, handle, ID, namespaceID ]
+  - name: bulkOperation
+  - name: field
+  - name: positionField
+    type: "*types.ModuleField"
+    fields: [ name, label ]
+  - name: groupField
+    type: "*types.ModuleField"
+    fields: [ name, label ]
+  - name: value
+  - name: valueErrors
+    type: "*types.RecordValueErrorSet"
+    fields: [ set ]
+
+actions:
+  - action: search
+    log: "searched for records"
+    severity: info
+
+  - action: searchSensitive
+    log: "searched for records with sensitive data"
+    severity: info
+
+  - action: lookup
+    log: "looked-up for a {{record}}"
+    severity: info
+
+  - action: report
+    log: "report generated"
+    severity: info
+
+  - action: bulk
+    log: "bulk record operation"
+
+  - action: create
+    log: "created {{record}}"
+
+  - action: update
+    log: "updated {{record}}"
+
+  - action: delete
+    log: "deleted {{record}}"
+
+  - action: patch
+    log: "patched {{record}}"
+
+  - action: undelete
+    log: "undeleted {{record}}"
+
+  - action: import
+    log: "records imported"
+
+  - action: searchRevisions
+    log: "record revisions searched"
+
+  - action: export
+    log: "records exported"
+
+  - action: organize
+    log: "records organized"
+
+  - action: iteratorInvoked
+    log: "iterator invoked"
+
+  - action: iteratorIteration
+    log: "processed record iteration"
+
+  - action: iteratorClone
+    log: "cloned record in iteration"
+
+  - action: iteratorUpdate
+    log: "updated record in iteration"
+
+  - action: iteratorDelete
+    log: "deleted record in iteration"
+
+  - action: iteratorUndelete
+    log: "undeleted record in iteration"
+
+errors:
+  - error: notFound
+    message: "record not found"
+    severity: warning
+
+  - error: namespaceNotFound
+    message: "namespace not found"
+    severity: warning
+
+  - error: moduleNotFoundModule
+    message: "module not found"
+    severity: warning
+
+  - error: invalidID
+    message: "invalid ID"
+    severity: warning
+
+  - error: invalidNamespaceID
+    message: "invalid or missing namespace ID"
+    severity: warning
+
+  - error: invalidModuleID
+    message: "invalid or missing module ID"
+    severity: warning
+
+  - error: staleData
+    message: "record was modified by someone else or by a workflow after you've opened it. Please refresh to see the latest updated version"
+    severity: warning
+
+  - error: notAllowedToFilterByField
+    message: "not allowed to filter by field {{field}}; you do not have permission to read its values"
+    log: "failed to filter by field {{field}}; insufficient permissions to read field values"
+
+  - error: notAllowedToSortByField
+    message: "not allowed to sort by field {{field}}; you do not have permission to read its values"
+    log: "failed to sort by field {{field}}; insufficient permissions to read field values"
+
+
+  - error: notAllowedToRead
+    message: "not allowed to read this record"
+    log: "failed to read {{record}}; insufficient permissions"
+
+  - error: notAllowedToSearch
+    message: "not allowed to search or list records"
+    log: "failed to search or list records; insufficient permissions"
+
+  - error: notAllowedToSearchRevisions
+    message: "not allowed to search or list record revisions"
+    log: "failed to search or list record revisions; insufficient permissions"
+
+  - error: revisionsDisabledOnModule
+    message: "revisions are disabled on module"
+    log: "failed to search or list record revisions; disabled on module"
+
+  - error: notAllowedToReadNamespace
+    message: "not allowed to read this namespace"
+    log: "failed to read namespace {{namespace}}; insufficient permissions"
+
+  - error: notAllowedToReadModule
+    message: "not allowed to read module"
+    log: "failed to read module {{module}}; insufficient permissions"
+
+  - error: notAllowedToListRecords
+    message: "not allowed to list records"
+    log: "failed to list record; insufficient permissions"
+
+  - error: notAllowedToCreate
+    message: "not allowed to create records"
+    log: "failed to create record; insufficient permissions"
+
+  - error: notAllowedToUpdate
+    message: "not allowed to update this record"
+    log: "failed to update {{record}}; insufficient permissions"
+
+  - error: notAllowedToDelete
+    message: "not allowed to delete this record"
+    log: "failed to delete {{record}}; insufficient permissions"
+
+  - error: notAllowedToUndelete
+    message: "not allowed to undelete this record"
+    log: "failed to undelete {{record}}; insufficient permissions"
+
+  - error: notAllowedToChangeFieldValue
+    message: "not allowed to change value of field {{field}}"
+    log: "failed to change value of field {{field}}; insufficient permissions"
+
+  - error: maxRecordsReached
+    message: "maximum number of records per namespace reached"
+    log: "maximum number of records per namespace reached"
+
+  # Organizer
+  - error: missingPositionField
+    message: "position module field not found"
+    log: "position module field not found"
+
+  - error: invalidPositionFieldKind
+    message: "invalid position field {{positionField}} kind; kind must be 'Number'"
+    log: "invalid position field {{positionField}} kind; kind must be 'Number'"
+
+  - error: invalidPositionFieldConfigMultiValue
+    message: "invalid position field {{positionField}} configuration; field must not be multi-value"
+    log: "invalid position field {{positionField}} configuration; field must not be multi-value"
+
+  - error: invalidPositionValueType
+    message: "invalid position value data type; value must be numeric"
+    log: "invalid position value data type; value must be numeric"
+
+  - error: missingGroupField
+    message: "group module field not found"
+    log: "group module field not found"
+  - error: invalidGroupFieldConfigMultiValue
+    message: "invalid group field {{groupField}} configuration; field must not be multi-value"
+    log: "invalid group field {{groupField}} configuration; field must not be multi-value"
+
+  # Importing
+  - error: importSessionAlreadActive
+    message: "import session already active"
+    log: "failed to start import session"
+
+  - error: fieldNotFound
+    message: "no such field {{field}}"
+
+  - error: invalidValueStructure
+    message: "more than one value for a single-value field {{field}}"
+
+  - error: unknownBulkOperation
+    message: "unknown bulk operation {{bulkOperation}}"
+
+  - error: invalidReferenceFormat
+    message: "invalid reference format"
+
+  - error: valueInput
+    message: "invalid record value input"

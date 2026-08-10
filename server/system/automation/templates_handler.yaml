@@ -1,0 +1,163 @@
+imports:
+  - github.com/cortezaproject/corteza/server/system/types
+  - labelTypes github.com/cortezaproject/corteza/server/pkg/label/types
+
+
+snippets:
+  lookup: &lookup
+    required: true
+    types:
+      - { wf: ID     }
+      - { wf: Handle }
+      - { wf: Template,   suffix: res }
+
+  template: &template
+    types:
+      - { wf: Template }
+
+  rvTemplate: &rvTemplate
+    wf: Template
+
+  rvRenderedDocument: &rvRenderedDocument
+    wf: RenderedDocument
+
+  rvTotal: &rvTotal
+    wf: UnsignedInteger
+
+  rvPageCursor: &rvPageCursor
+    wf: String
+
+  filterParams: &filterParams
+    handle:
+      types:
+        - { wf: String }
+    type:
+      types:
+        - { wf: String }
+    ownerID:
+      types:
+        - { wf: ID }
+    partial:
+      types:
+        - { wf: Boolean }
+    labels:
+      types:
+        - { wf: LabelValue }
+    sort:
+      types:
+        - { wf: String }
+    limit:
+      types:
+        - { wf: UnsignedInteger }
+    incTotal:
+      types:
+        - { wf: Boolean }
+    incPageNavigation:
+      types:
+        - { wf: Boolean }
+    pageCursor:
+      types:
+        - { wf: String }
+
+labels: &labels
+  templates:  "step,workflow"
+
+functions:
+  lookup:
+    meta:
+      short: Template lookup
+      description: Find specific template by ID or handle
+    params:
+      lookup: *lookup
+    labels:
+      <<: *labels
+    results:
+      template: *rvTemplate
+
+  search:
+    meta:
+      short: Templates search
+    params: *filterParams
+    labels:
+      <<: *labels
+    results:
+      templates:
+        <<: *rvTemplate
+        isArray: true
+      total: *rvTotal
+
+  each:
+    kind: iterator
+    meta:
+      short: Templates
+    params: *filterParams
+    labels:
+      <<: *labels
+    results:
+      template:  *rvTemplate
+      total: *rvTotal
+
+  create:
+    meta:
+      short: Template create
+    labels:
+      <<: *labels
+    params:
+      template:
+        <<: *template
+        required: true
+    results:
+      template: *rvTemplate
+
+  update:
+    meta:
+      short: Template update
+    labels:
+      <<: *labels
+    params:
+      template:
+        <<: *template
+        required: true
+    results:
+      template: *rvTemplate
+
+  delete:
+    labels:
+      <<: *labels
+      delete: "step"
+    meta:
+      short: Template delete
+    params:
+      lookup: *lookup
+
+  recover:
+    meta:
+      short: Template recover
+    labels:
+      <<: *labels
+      recover: "step"
+    params:
+      lookup: *lookup
+
+  render:
+    meta:
+      short: Template render
+    labels:
+      <<: *labels
+      render: "step"
+    params:
+      lookup: *lookup
+      documentName:
+        types:
+          - { wf: String }
+      documentType:
+        types:
+          - { wf: String }
+      variables:
+        types:
+          - { wf: Vars, go: '*expr.Vars' }
+      options:
+        types:
+          - { wf: RenderOptions }
+    results:
+      document: *rvRenderedDocument

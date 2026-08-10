@@ -1,0 +1,48 @@
+{
+  "handle": "primary_connection",
+  "type": "corteza::system:primary-dal-connection",
+
+  "meta": {
+    "name": "Primary Connection EDITED",
+    "location": {
+      "geometry": {
+        "type": "",
+        "coordinates": null
+      },
+      "properties": {
+        "name": ""
+      }
+    },
+    "ownership": ""
+  },
+
+  "config": {
+    "connection": {
+      "type": "corteza::dal:connection:dsn",
+      "params": {
+        "dsn": "sqlite3://file::memory:?cache=shared&mode=memory"
+      }
+    },
+    "privacy": {
+      "sensitivityLevelID": "0"
+    },
+    "dal": {
+      "properties": {},
+      "operations": [
+        "corteza::dal:operation:create",
+        "corteza::dal:operation:update",
+        "corteza::dal:operation:search",
+        "corteza::dal:operation:lookup",
+        "corteza::dal:operation:paging",
+        "corteza::dal:operation:stats",
+        "corteza::dal:operation:sorting",
+        "corteza::dal:operation:RBAC"
+      ],
+
+      "modelIdent": "compose_record",
+      "attributeIdent": "values",
+      "partitionFormat": "compose_record_{{namespace}}_{{module}}",
+      "partitionIdentValidator": ""
+    }
+  }
+}

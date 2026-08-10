@@ -1,0 +1,222 @@
+# List of security/audit events and errors that we need to log
+
+resource: system:auth
+service: auth
+
+# Default sensitivity for actions
+defaultActionSeverity: notice
+
+# default severity for errors
+defaultErrorSeverity: alert
+
+import:
+  - github.com/cortezaproject/corteza/server/system/types
+
+props:
+  - name: email
+  - name: provider
+  - name: credentials
+    type: "*types.Credential"
+    fields: [ kind, label, ID ]
+  - name: role
+    type: "*types.Role"
+    fields: [ handle, name, ID ]
+  - name: user
+    type: "*types.User"
+    fields: [ handle, name, ID, email, suspendedAt, deletedAt ]
+
+actions:
+  - action: authenticate
+    log: "successfully authenticated with {{credentials.kind}}"
+
+  - action: issueToken
+    log: "token '{{credentials.kind}}' issued"
+
+  - action: validateToken
+    log: "token '{{credentials.kind}}' validated"
+
+  - action: changePassword
+    log: "password changed"
+
+  - action: internalSignup
+    log: "{{user.email}} signed-up"
+
+  - action: confirmEmail
+    log: "email {{user.email}} confirmed"
+
+  - action: externalSignup
+    log: "{{user.email}} signed-up after successful external authentication via {{credentials.kind}}"
+
+  - action: sendEmailConfirmationToken
+    log: "confirmation notification sent to {{email}}"
+
+  - action: sendPasswordResetToken
+    log: "password reset token sent to {{email}}"
+
+  - action: exchangePasswordResetToken
+    log: "password reset token exchanged"
+
+  - action: generatePasswordCreateToken
+    log: "password create token generated for {{email}}"
+
+  - action: autoPromote
+    log: "auto-promoted to {{role}}"
+
+  - action: updateCredentials
+    log: "credentials {{credentials.kind}} updated"
+
+  - action: createCredentials
+    log: "new credentials {{credentials.kind}} created"
+
+  - action: impersonate
+    log: "impersonating {{user}}"
+
+  - action: totpConfigure
+    log: "time-based one-time-password for {{user}} configured"
+
+  - action: totpRemove
+    log: "time-based one-time-password for {{user}} removed"
+
+  - action: totpValidate
+    log: "time-based one-time-password for {{user}} validated"
+
+  - action: emailOtpVerify
+    log: "email one-time-password for {{user}} verified"
+
+  - action: accessTokensRemoved
+    log: "access tokens for {{user}} removed"
+
+  - action: sendInviteEMail
+    log: "invite email sent to {{email}}"
+errors:
+  - error: invalidCredentials
+    message: "invalid username and password combination"
+    log: "{{email}} failed to authenticate with {{credentials.kind}}"
+    severity: warning
+
+  - error: invalidEmailFormat
+    message: "invalid email"
+
+  - error: invalidHandle
+    message: "invalid handle"
+
+  - error: failedForUnknownUser
+    maskedWith: invalidCredentials
+    log: "unknown user {{email}} tried to log-in with {{credentials.kind}}"
+    severity: warning
+
+  - error: failedForDeletedUser
+    maskedWith: invalidCredentials
+    log: "deleted user {{user}} tried to log-in with {{credentials.kind}}"
+    severity: warning
+
+  - error: failedForSuspendedUser
+    maskedWith: invalidCredentials
+    log: "suspended user {{user}} tried to log-in with {{credentials.kind}}"
+    severity: warning
+
+  - error: failedForSystemUser
+    maskedWith: invalidCredentials
+    log: "system user {{user}} tried to log-in with {{credentials.kind}}"
+    severity: warning
+
+  - error: failedUnconfirmedEmail
+    message: "system requires confirmed email before logging in"
+    log: "failed to log-in with with unconfirmed email"
+
+  - error: internalLoginDisabledByConfig
+    message: "internal login (username/password) is disabled"
+
+  - error: internalSignupDisabledByConfig
+    message: "internal sign-up (username/password) is disabled"
+
+  - error: passwordChangeFailedForUnknownUser
+    message: "failed to change password for the unknown user"
+
+  - error: passwordResetFailedOldPasswordCheckFailed
+    message: "failed to change password, old password does not match"
+
+  - error: passwordSetFailedReusedPasswordCheckFailed
+    message: "failed to set password, already used"
+
+  - error: passwordCreateFailedForUnknownUser
+    message: "failed to create password for the unknown user"
+
+  - error: passwordResetDisabledByConfig
+    message: "password reset is disabled"
+
+  - error: passwordCreateDisabledByConfig
+    message: "password create is disabled"
+
+  - error: passwordNotSecure
+    message: "provided password is not secure; use longer password to follow the password policy"
+
+  - error: externalDisabledByConfig
+    message: "external authentication (using external authentication provider) is disabled"
+    log: "external authentication is disabled"
+    severity: warning
+
+  - error: profileWithoutValidEmail
+    message: "external authentication provider returned profile without valid email"
+    log: "external authentication provider {{credentials.kind}} returned profile without valid email"
+    severity: warning
+
+  - error: credentialsLinkedToInvalidUser
+    message: "credentials {{credentials.kind}} linked to disabled or deleted user {{user}}"
+    severity: warning
+
+  - error: invalidToken
+    message: "invalid token"
+    severity: warning
+
+  - error: notAllowedToImpersonate
+    message: "not allowed to impersonate this user"
+    severity: warning
+
+  - error: notAllowedToRemoveTOTP
+    message: "not allowed to remove TOTP"
+    severity: warning
+
+  - error: unconfiguredTOTP
+    message: "TOTP not configured"
+    severity: warning
+
+  - error: notAllowedToConfigureTOTP
+    message: "not allowed to configure TOTP"
+    severity: warning
+
+  - error: enforcedMFAWithTOTP
+    message: "TOTP is enforced and cannot be disabled"
+    severity: warning
+
+  - error: invalidTOTP
+    message: "invalid code"
+    severity: warning
+
+  - error: disabledMFAWithTOTP
+    message: "multi factor authentication with TOTP is disabled"
+    severity: warning
+
+  - error: disabledMFAWithEmailOTP
+    message: "multi factor authentication with email OTP is disabled"
+    severity: warning
+
+  - error: enforcedMFAWithEmailOTP
+    message: "OTP over email is enforced and cannot be disabled"
+    severity: warning
+
+  - error: invalidEmailOTP
+    message: "invalid code"
+    severity: warning
+
+  - error: rateLimitExceeded
+    message: "rate limit exceeded"
+    log: "rate limit exceeded for {{user}}"
+
+  - error: maxUserLimitReached
+    message: "you have reached your user limit, contact your Corteza administrator"
+    severity: warning
+
+  - error: disabledSendUserInviteEmail
+    message: "sending user invite email is disabled"
+    severity: warning

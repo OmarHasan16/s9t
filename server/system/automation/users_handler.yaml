@@ -1,0 +1,198 @@
+imports:
+  - github.com/cortezaproject/corteza/server/system/types
+  - labelTypes github.com/cortezaproject/corteza/server/pkg/label/types
+
+
+snippets:
+  lookup: &lookup
+    required: true
+    types:
+      - { wf: ID     }
+      - { wf: Handle }
+      - { wf: String, suffix: email }
+      - { wf: User,   suffix: res }
+
+  lookupRole: &lookupRole
+    required: true
+    types:
+      - { wf: ID,     }
+      - { wf: Handle, }
+      - { wf: Role,   suffix: res }
+
+  user: &user
+    types:
+      - { wf: User }
+
+  rvUser: &rvUser
+    wf: User
+
+  rvRole: &rvRole
+    wf: Role
+
+  rvTotal: &rvTotal
+    wf: UnsignedInteger
+
+  rvInclusion: &rvInclusion
+    wf: Boolean
+
+  rvPageCursor: &rvPageCursor
+    wf: String
+
+  filterParams: &filterParams
+    query:
+      types:
+        - { wf: String }
+    email:
+      types:
+        - { wf: String }
+    handle:
+      types:
+        - { wf: String }
+    labels:
+      types:
+        - { wf: LabelValue }
+    deleted:
+      types:
+        - { wf: UnsignedInteger }
+    suspended:
+      types:
+        - { wf: UnsignedInteger }
+    sort:
+      types:
+        - { wf: String }
+    limit:
+      types:
+        - { wf: UnsignedInteger }
+    incTotal:
+      types:
+        - { wf: Boolean }
+    incPageNavigation:
+      types:
+        - { wf: Boolean }
+    pageCursor:
+      types:
+        - { wf: String }
+
+labels: &labels
+  users:  "step,workflow"
+
+functions:
+  lookup:
+    meta:
+      short: User lookup
+      description: Find specific user by ID, handle or string
+    params:
+      lookup: *lookup
+    labels:
+      <<: *labels
+    results:
+      user:  *rvUser
+
+  searchMembership:
+    meta:
+      short: User role search
+      description: Search user role membership by ID, handle or string
+    params:
+      lookup: *lookup
+    labels:
+      <<: *labels
+    results:
+      roles:
+        <<: *rvRole
+        isArray: true
+      total: *rvTotal
+
+  checkMembership:
+    meta:
+      short: User membership check
+      description: Find user role membership by ID, handle or string
+    params:
+      user: *lookup
+      role: *lookupRole
+    labels:
+      <<: *labels
+    results:
+      member: *rvInclusion
+
+  search:
+    meta:
+      short: User search
+    params: *filterParams
+    labels:
+      <<: *labels
+    results:
+      users:
+        <<: *rvUser
+        isArray: true
+      total: *rvTotal
+
+  each:
+    kind: iterator
+    meta:
+      short: Users
+    params: *filterParams
+    labels:
+      <<: *labels
+    results:
+      user:  *rvUser
+      total: *rvTotal
+
+  create:
+    meta:
+      short: User create
+    labels:
+      <<: *labels
+    params:
+      user:
+        <<: *user
+        required: true
+    results:
+      user: *rvUser
+
+  update:
+    meta:
+      short: User update
+    labels:
+      <<: *labels
+    params:
+      user:
+        <<: *user
+        required: true
+    results:
+      user: *rvUser
+
+  delete:
+    labels:
+      <<: *labels
+      delete: "step"
+    meta:
+      short: User delete
+    params:
+      lookup: *lookup
+
+  recover:
+    labels:
+      <<: *labels
+      recover: "step"
+    meta:
+      short: User recover
+    params:
+      lookup: *lookup
+
+  suspend:
+    labels:
+      <<: *labels
+      suspend: "step"
+    meta:
+      short: User suspend
+    params:
+      lookup: *lookup
+
+  unsuspend:
+    labels:
+      <<: *labels
+      unsuspend: "step"
+    meta:
+      short: User unsuspend
+    params:
+      lookup: *lookup

@@ -1,0 +1,434 @@
+package mysql
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/cortezaproject/corteza/server/store/adapters/rdbms/ddl"
+	"github.com/cortezaproject/corteza/server/store/adapters/rdbms/ql"
+	"github.com/spf13/cast"
+
+	"github.com/cortezaproject/corteza/server/pkg/dal"
+	"github.com/cortezaproject/corteza/server/pkg/expr"
+	"github.com/cortezaproject/corteza/server/store/adapters/rdbms/drivers"
+	"github.com/doug-martin/goqu/v9"
+	"github.com/doug-martin/goqu/v9/dialect/mysql"
+	"github.com/doug-martin/goqu/v9/exp"
+	"github.com/doug-martin/goqu/v9/sqlgen"
+)
+
+type (
+	mysqlDialect struct{}
+)
+
+var (
+	_ drivers.Dialect = &mysqlDialect{}
+
+	dialect            = &mysqlDialect{}
+	goquDialectWrapper = goqu.Dialect("mysql")
+	goquDialectOptions = mysql.DialectOptions()
+	quoteIdent         = string(mysql.DialectOptions().QuoteRune)
+
+	nuances = drivers.Nuances{
+		HavingClauseMustUseAlias: false,
+	}
+)
+
+func Dialect() *mysqlDialect {
+	return dialect
+}
+
+func (mysqlDialect) Nuances() drivers.Nuances {
+	return nuances
+}
+
+func (d mysqlDialect) AggregateBase(t drivers.TableCodec, groupBy []dal.AggregateAttr, out []dal.AggregateAttr) (slct *goqu.SelectDataset) {
+	var (
+		cols = t.Columns()
+
+		// working around a bug inside goqu lib that adds
+		// * to the list of columns to be selected
+		// even if we clear the columns first
+		q = d.GOQU().
+			From(t.Ident())
+	)
+
+	for _, g := range groupBy {
+		// Special handling for multi value fields
+		if g.MultiValue {
+			// Only straight up columns can be multi value so we can freely use RawExpr
+			colName := g.RawExpr
+			ax, err := t.AttributeExpressionQuoted(colName)
+			if err != nil {
+				q = q.SetError(err)
+				return q
+			}
+
+			q = q.From(
+				t.Ident(),
+				goqu.Func("JSON_TABLE",
+					ax,
+					exp.NewLiteralExpression(fmt.Sprintf(`'$[*]' COLUMNS (%s TEXT PATH '$')`, colName)),
+				).As(colName),
+			)
+		}
+	}
+
+	if len(cols) == 0 {
+		return q.SetError(fmt.Errorf("can not create SELECT without columns"))
+	}
+
+	q = q.Select(t.Ident().Col(cols[0].Name()))
+	for _, col := range cols[1:] {
+		q = q.SelectAppend(t.Ident().Col(col.Name()))
+	}
+
+	return q
+}
+
+func (mysqlDialect) GOQU() goqu.DialectWrapper                 { return goquDialectWrapper }
+func (mysqlDialect) DialectOptions() *sqlgen.SQLDialectOptions { return goquDialectOptions }
+func (mysqlDialect) QuoteIdent(i string) string                { return quoteIdent + i + quoteIdent }
+
+func (d mysqlDialect) IndexFieldModifiers(attr *dal.Attribute, mm ...dal.IndexFieldModifier) (string, error) {
+	return drivers.IndexFieldModifiers(attr, d.QuoteIdent, mm...)
+}
+
+func (d mysqlDialect) JsonQuote(expr exp.Expression) exp.Expression {
+	return exp.NewSQLFunctionExpression(
+		"JSON_EXTRACT",
+		exp.NewSQLFunctionExpression("JSON_ARRAY", expr),
+		exp.NewLiteralExpression("'$[0]'"),
+	)
+}
+
+func (d mysqlDialect) JsonExtract(jsonDoc exp.Expression, pp ...any) (path exp.Expression, err error) {
+	if path, err = jsonPathExpr(pp...); err != nil {
+		return
+	} else {
+		return exp.NewSQLFunctionExpression("JSON_EXTRACT", jsonDoc, path), nil
+	}
+}
+
+func (d mysqlDialect) JsonExtractUnquote(jsonDoc exp.Expression, pp ...any) (_ exp.Expression, err error) {
+	if jsonDoc, err = d.JsonExtract(jsonDoc, pp...); err != nil {
+		return
+	} else {
+		return exp.NewSQLFunctionExpression("JSON_UNQUOTE", jsonDoc), nil
+	}
+}
+
+// JsonArrayContains prepares MySQL compatible comparison of value (or ident) and JSON array
+//
+// # literal value = multi-value field / plain
+// # multi-value field = single-value field / plain
+// JSON_CONTAINS(v, JSON_EXTRACT(needle, '$.f3'), '$.f2')
+//
+// # single-value field = multi-value field / plain
+// # multi-value field = single-value field / plain
+// JSON_CONTAINS(v, '"needle"', '$.f2')
+//
+// This approach is not optimal, but it is the only way to make it work
+func (d mysqlDialect) JsonArrayContains(needle, haystack exp.Expression) (_ exp.Expression, err error) {
+	return exp.NewSQLFunctionExpression("JSON_CONTAINS", haystack, needle), nil
+}
+
+func (d mysqlDialect) TableCodec(m *dal.Model) drivers.TableCodec {
+	return drivers.NewTableCodec(m, d)
+}
+
+func (d mysqlDialect) TypeWrap(dt dal.Type) drivers.Type {
+	// Any exception to general type-wrap implementation in the drivers package
+	// should be placed here
+	switch c := dt.(type) {
+	case *dal.TypeTimestamp:
+		return &drivers.TypeTimestamp{&dal.TypeTimestamp{
+			Nullable: c.Nullable,
+
+			// mysql does not support timezone
+			Timezone: false,
+
+			// mysql does not support precision
+			Precision: 0,
+		}}
+	}
+
+	return drivers.TypeWrap(dt)
+}
+
+// AttributeCast for mySQL
+//
+// https://dev.mysql.com/doc/refman/8.0/en/cast-functions.html#function_cast
+func (mysqlDialect) AttributeCast(attr *dal.Attribute, val exp.Expression) (exp.Expression, error) {
+	var (
+		c exp.CastExpression
+	)
+
+	switch attr.Type.(type) {
+
+	case *dal.TypeNumber:
+		ce := exp.NewCaseExpression().
+			When(drivers.RegexpLike(drivers.CheckNumber, val), val).
+			Else(drivers.LiteralNULL)
+
+		c = exp.NewCastExpression(ce, "DECIMAL(65,10)")
+
+	case *dal.TypeTimestamp:
+		ce := exp.NewCaseExpression().
+			When(drivers.RegexpLike(drivers.CheckFullISO8061, val), val).
+			Else(drivers.LiteralNULL)
+
+		c = exp.NewCastExpression(ce, "DATETIME")
+
+	case *dal.TypeBoolean:
+		c = exp.NewCastExpression(drivers.BooleanCheck(val), "SIGNED")
+
+	case *dal.TypeID, *dal.TypeRef:
+		ce := exp.NewCaseExpression().
+			When(drivers.RegexpLike(drivers.CheckID, val), val).
+			Else(drivers.LiteralNULL)
+
+		c = exp.NewCastExpression(ce, "UNSIGNED")
+
+	case *dal.TypeTime:
+		ce := exp.NewCaseExpression().
+			When(drivers.RegexpLike(drivers.CheckTimeISO8061, val), val).
+			Else(drivers.LiteralNULL)
+
+		c = exp.NewCastExpression(ce, "TIME")
+
+	default:
+		return drivers.AttributeCast(attr, val)
+
+	}
+
+	return exp.NewLiteralExpression("?", c), nil
+}
+
+func (mysqlDialect) AttributeExpression(attr *dal.Attribute, modelIdent string, ident string) (expr exp.Expression, err error) {
+	return exp.NewLiteralExpression("?", exp.NewIdentifierExpression("", modelIdent, ident)), nil
+}
+
+func (mysqlDialect) AttributeToColumn(attr *dal.Attribute) (col *ddl.Column, err error) {
+	col = &ddl.Column{
+		Ident:   attr.StoreIdent(),
+		Comment: attr.Label,
+		Type: &ddl.ColumnType{
+			Null: attr.Type.IsNullable(),
+		},
+	}
+
+	switch t := attr.Type.(type) {
+	case *dal.TypeID:
+		col.Type.Name = "BIGINT UNSIGNED"
+		col.Default = ddl.DefaultID(t.HasDefault, t.DefaultValue)
+	case *dal.TypeRef:
+		col.Type.Name = "BIGINT UNSIGNED"
+		col.Default = ddl.DefaultID(t.HasDefault, t.DefaultValue)
+
+	case *dal.TypeTimestamp:
+		col.Type.Name = "DATETIME"
+		col.Default = ddl.DefaultValueCurrentTimestamp(t.DefaultCurrentTimestamp)
+
+	case *TypeTime:
+		col.Type.Name = "TIME"
+		col.Default = ddl.DefaultValueCurrentTimestamp(t.DefaultCurrentTimestamp)
+
+	case *dal.TypeDate:
+		col.Type.Name = "DATE"
+		col.Default = ddl.DefaultValueCurrentTimestamp(t.DefaultCurrentTimestamp)
+
+	case *dal.TypeNumber:
+		col.Type.Name = "DECIMAL"
+		// @todo precision, scale?
+		col.Default = ddl.DefaultNumber(t.HasDefault, t.Precision, t.DefaultValue)
+
+	case *dal.TypeText:
+		if t.Length > 0 {
+			col.Type.Name = fmt.Sprintf("VARCHAR(%d)", t.Length)
+		} else {
+			col.Type.Name = "TEXT"
+		}
+
+		if t.HasDefault {
+			// @todo use proper quote type
+			col.Default = fmt.Sprintf("%q", t.DefaultValue)
+		}
+
+	case *dal.TypeJSON:
+		col.Type.Name = "JSON"
+
+	case *dal.TypeGeometry:
+		col.Type.Name = "JSON"
+
+	case *dal.TypeBlob:
+		col.Type.Name = "BLOB"
+
+	case *dal.TypeBoolean:
+		col.Type.Name = "TINYINT(1)"
+
+	case *dal.TypeUUID:
+		col.Type.Name = "CHAR(36)"
+
+	case *dal.TypeEnum:
+		col.Type.Name = "TEXT"
+
+	default:
+		return nil, fmt.Errorf("unsupported column type: %s ", t.Type())
+	}
+
+	return
+}
+
+// target is the existing one
+func (mysqlDialect) ColumnFits(target, assert *ddl.Column) bool {
+	targetType, targetName, targetMeta := ddl.ParseColumnTypes(target)
+	assertType, assertName, assertMeta := ddl.ParseColumnTypes(assert)
+
+	// If everything matches up perfectly use that
+	if assertType == targetType {
+		return true
+	}
+
+	// See if we can guess it
+	// [the type of the target column][what types fit the target col. type]
+	matches := map[string]map[string]bool{
+		"bigint unsigned": {
+			"varchar":    true,
+			"text":       true,
+			"mediumtext": true,
+			"longtext":   true,
+
+			"decimal": true,
+		},
+		"bigint signed": {
+			"varchar":    true,
+			"text":       true,
+			"mediumtext": true,
+			"longtext":   true,
+
+			"decimal": true,
+		},
+		"bigint": {
+			"varchar":    true,
+			"text":       true,
+			"mediumtext": true,
+
+			"decimal": true,
+		},
+		"datetime": {
+			"varchar":    true,
+			"text":       true,
+			"mediumtext": true,
+		},
+		"time": {
+			"varchar":    true,
+			"text":       true,
+			"mediumtext": true,
+			"longtext":   true,
+
+			"datetime": true,
+		},
+		"date": {
+			"varchar":    true,
+			"text":       true,
+			"mediumtext": true,
+
+			"datetime": true,
+		},
+		"decimal": {
+			"double":     true,
+			"varchar":    true,
+			"text":       true,
+			"mediumtext": true,
+			"longtext":   true,
+		},
+		"varchar": {
+			"text":       true,
+			"mediumtext": true,
+			"longtext":   true,
+			"char":       true,
+		},
+		"text": {
+			"varchar":  true,
+			"char":     true,
+			"longtext": true,
+		},
+		"json": {},
+		"blob": {},
+		"tinyint": {
+			"varchar":    true,
+			"bigint":     true,
+			"decimal":    true,
+			"text":       true,
+			"mediumtext": true,
+			"longtext":   true,
+		},
+		"char": {
+			"varchar":    true,
+			"text":       true,
+			"mediumtext": true,
+			"longtext":   true,
+		},
+	}
+
+	baseMatch := assertName == targetName || matches[assertName][targetName]
+
+	// Special cases
+	switch {
+	case assertName == "varchar" && targetName == "varchar":
+		// Check varchar size
+		return baseMatch && cast.ToInt(assertMeta[0]) <= cast.ToInt(targetMeta[0])
+
+	case assertName == "decimal" && targetName == "decimal":
+		// Check numeric size and precision
+		for i := len(assertMeta); i < 2; i++ {
+			assertMeta = append(assertMeta, "0")
+		}
+		for i := len(targetMeta); i < 2; i++ {
+			targetMeta = append(targetMeta, "0")
+		}
+
+		return baseMatch && cast.ToInt(assertMeta[0]) <= cast.ToInt(targetMeta[0]) && cast.ToInt(assertMeta[1]) <= cast.ToInt(targetMeta[1])
+	}
+
+	return baseMatch
+}
+
+func (d mysqlDialect) ExprHandler(n *ql.ASTNode, args ...exp.Expression) (expr exp.Expression, err error) {
+	switch ref := strings.ToLower(n.Ref); ref {
+	case "in":
+		return drivers.OpHandlerIn(d, n, args...)
+
+	case "nin":
+		return drivers.OpHandlerNotIn(d, n, args...)
+
+	case "like", "nlike":
+		for a := range args {
+			args[a] = exp.NewLiteralExpression("LOWER(?)", args[a])
+		}
+	}
+
+	return ref2exp.RefHandler(n, args...)
+}
+
+func (d mysqlDialect) ValHandler(n *ql.ASTNode) (out exp.Expression, err error) {
+	switch v := n.Value.V.(type) {
+	case *expr.Boolean:
+		// value handling for boolean is different in mysql
+		// this was done to support value parsing for (IS ?) statement
+		if cast.ToBool(v.Get()) {
+			out = drivers.LiteralTRUE
+		} else {
+			out = drivers.LiteralFALSE
+		}
+	default:
+		out = exp.NewLiteralExpression("?", n.Value.V.Get())
+	}
+
+	return
+}
+
+func (d mysqlDialect) OrderedExpression(expr exp.Expression, dir exp.SortDirection, _ exp.NullSortType) exp.OrderedExpression {
+	return exp.NewOrderedExpression(expr, dir, exp.NoNullsSortType)
+}

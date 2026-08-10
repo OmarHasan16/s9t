@@ -1,0 +1,9 @@
+namespace: crm
+charts:
+  ChartHandle:
+    allow:
+      authenticated:
+      - read
+    deny:
+      authenticated:
+      - delete

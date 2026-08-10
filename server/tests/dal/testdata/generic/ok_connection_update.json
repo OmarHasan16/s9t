@@ -1,0 +1,32 @@
+{
+  "handle": "test_connection_edited",
+  "type": "corteza::system:dal-connection",
+
+  "meta": {
+    "name": "Test Connection EDITED",
+    "location": {
+      "geometry": {
+        "type": "",
+        "coordinates": null
+      },
+      "properties": {
+        "name": ""
+      }
+    },
+    "ownership": ""
+  },
+
+  "config": {
+    "dal": {
+      "modelIdent": "compose_record",
+
+      "type": "corteza::dal:connection:dsn",
+      "params": {
+        "dsn": "sqlite3://file::memory:?cache=shared&mode=memory"
+      }
+    },
+    "privacy": {
+      "sensitivityLevelID": "0"
+    }
+  }
+}
