@@ -67,7 +67,11 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 
 	// 2. Existing key/hash read-only lookup
 	status, hash, err := h.dbTransaction.CheckIdempotencyStatus(ctx, tenantID, cmd.IdempotencyKey)
-	if err == nil {
+	if err != nil {
+		if !errors.Is(err, ports.ErrOperationNotFound) {
+			return fmt.Errorf("check idempotency status: %w", err)
+		}
+	} else {
 		if hash != cmdHash {
 			// 4. Hash mismatch -> conflict, row unchanged
 			return ErrCommandConflict
@@ -80,8 +84,6 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 			// 5. Fresh processing -> locked
 			return ErrCommandLocked
 		}
-	} else {
-		// Ignore not found errors and proceed
 	}
 
 	// 6. Deal/version/domain validation
@@ -110,7 +112,7 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 	// 7. New operation reserve or retryable operation claim
 	now := h.clock.Now().UTC()
 	staleBefore := now.Add(-5 * time.Minute)
-	opID, opStatus, err := h.dbTransaction.AcquireCommandLease(ctx, tenantID, cmd.IdempotencyKey, cmdHash, h.workerID, now, staleBefore)
+	opID, opStatus, leaseToken, err := h.dbTransaction.AcquireCommandLease(ctx, tenantID, cmd.IdempotencyKey, cmdHash, h.workerID, now, staleBefore)
 	if err != nil {
 		if errors.Is(err, ErrIdempotencyHashConflict) {
 			return ErrCommandConflict
@@ -129,7 +131,7 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 	// 8. Corteza update
 	actualVersion, err := h.crmGateway.UpdateDealStage(ctx, tenantID, cmd.DealID, cmd.TargetStage, cmd.ExpectedVersion)
 	if err != nil {
-		statusErr := h.dbTransaction.UpdateOperationStatus(ctx, opID, "retryable_failure", err.Error())
+		statusErr := h.dbTransaction.UpdateOperationStatus(ctx, tenantID, opID, "retryable_failure", err.Error(), leaseToken)
 		if statusErr != nil {
 			return fmt.Errorf("corteza update failed: %w, also status update failed: %v", err, statusErr)
 		}
@@ -154,7 +156,7 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 		"actual_version": actualVersion,
 	})
 	if err != nil {
-		_ = h.dbTransaction.UpdateOperationStatus(ctx, opID, "retryable_failure", "marshal deal event failed")
+		_ = h.dbTransaction.UpdateOperationStatus(ctx, tenantID, opID, "retryable_failure", "marshal deal event failed", leaseToken)
 		return fmt.Errorf("marshal deal event: %w", err) 
 	}
 
@@ -180,12 +182,12 @@ func (h *ChangeDealStageHandler) Execute(ctx context.Context, cmd ChangeDealStag
 			return err
 		}
 		
-		return h.dbTransaction.UpdateOperationStatus(txCtx, opID, "completed", "")
+		return h.dbTransaction.UpdateOperationStatus(txCtx, tenantID, opID, "completed", "", leaseToken)
 	})
 
 	if err != nil {
 		// exact operationID + tenant-scoped reconciliation
-		_ = h.dbTransaction.RequireReconciliation(ctx, tenantID, opID, "outbox persistence failed")
+		_ = h.dbTransaction.RequireReconciliation(ctx, tenantID, opID, "outbox persistence failed", leaseToken)
 		return ErrDualWriteFailed
 	}
 

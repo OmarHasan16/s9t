@@ -11,6 +11,7 @@ CREATE TABLE platform.operation_ledger (
     last_error TEXT,
     locked_at TIMESTAMP WITH TIME ZONE,
     locked_by TEXT,
+    lease_token UUID,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, idempotency_key)

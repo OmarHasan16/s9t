@@ -51,9 +51,9 @@ func (f *FakeCortezaCRMGateway) UpdateDealStage(ctx context.Context, tenantID ty
 type FakeDBTransactionManager struct {
 	RunInTransactionFunc       func(ctx context.Context, fn func(txCtx context.Context) error) error
 	CheckIdempotencyStatusFunc func(ctx context.Context, tenantID types.TenantID, idempotencyKey string) (string, string, error)
-	AcquireCommandLeaseFunc    func(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, error)
-	UpdateOperationStatusFunc  func(ctx context.Context, operationID string, status string, lastError string) error
-	RequireReconciliationFunc  func(ctx context.Context, tenantID types.TenantID, operationID string, reason string) error
+	AcquireCommandLeaseFunc    func(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error)
+	UpdateOperationStatusFunc  func(ctx context.Context, tenantID types.TenantID, operationID string, status string, lastError string, leaseToken string) error
+	RequireReconciliationFunc  func(ctx context.Context, tenantID types.TenantID, operationID string, reason string, leaseToken string) error
 	SaveOutboxEventFunc        func(ctx context.Context, event outbox.Event) error
 
 	RunInTransactionCallCount       int
@@ -74,30 +74,30 @@ func (f *FakeDBTransactionManager) CheckIdempotencyStatus(ctx context.Context, t
 	if f.CheckIdempotencyStatusFunc != nil {
 		return f.CheckIdempotencyStatusFunc(ctx, tenantID, idempotencyKey)
 	}
-	return "", "", errors.New("not found")
+	return "", "", ports.ErrOperationNotFound
 }
 
-func (f *FakeDBTransactionManager) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, error) {
+func (f *FakeDBTransactionManager) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error) {
 	f.AcquireCommandLeaseCallCount++
 	if f.AcquireCommandLeaseFunc != nil {
 		return f.AcquireCommandLeaseFunc(ctx, tenantID, idempotencyKey, commandHash, workerID, now, staleBefore)
 	}
-	return "op-123", "processing", nil
+	return "op-123", "processing", "lease-456", nil
 }
 
-func (f *FakeDBTransactionManager) UpdateOperationStatus(ctx context.Context, operationID string, status string, lastError string) error {
+func (f *FakeDBTransactionManager) UpdateOperationStatus(ctx context.Context, tenantID types.TenantID, operationID string, status string, lastError string, leaseToken string) error {
 	f.UpdateOperationStatusCallCount++
 	f.CapturedOpStatus = status
 	if f.UpdateOperationStatusFunc != nil {
-		return f.UpdateOperationStatusFunc(ctx, operationID, status, lastError)
+		return f.UpdateOperationStatusFunc(ctx, tenantID, operationID, status, lastError, leaseToken)
 	}
 	return nil
 }
 
-func (f *FakeDBTransactionManager) RequireReconciliation(ctx context.Context, tenantID types.TenantID, operationID string, reason string) error {
+func (f *FakeDBTransactionManager) RequireReconciliation(ctx context.Context, tenantID types.TenantID, operationID string, reason string, leaseToken string) error {
 	f.RequireReconciliationCallCount++
 	if f.RequireReconciliationFunc != nil {
-		return f.RequireReconciliationFunc(ctx, tenantID, operationID, reason)
+		return f.RequireReconciliationFunc(ctx, tenantID, operationID, reason, leaseToken)
 	}
 	return nil
 }
@@ -213,6 +213,10 @@ func TestChangeDealStage_CortezaUpdateFailureMarksRetryableFailure(t *testing.T)
 	gw.UpdateDealStageFunc = func(ctx context.Context, tenantID types.TenantID, dealID string, targetStage string, expectedVersion int) (int, error) {
 		return 0, cortezaErr
 	}
+	tx.UpdateOperationStatusFunc = func(ctx context.Context, tenantID types.TenantID, operationID string, status string, lastError string, leaseToken string) error {
+		return errors.New("db error")
+	}
+	
 	err := handler.Execute(ctx, command.ChangeDealStageCommand{ExpectedVersion: 1, TargetStage: policy.DealStageQualified})
 	
 	assert.ErrorContains(t, err, "corteza update failed")
