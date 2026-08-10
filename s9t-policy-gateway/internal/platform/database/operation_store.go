@@ -67,23 +67,18 @@ func (s *OperationStore) SaveOutboxEvent(ctx context.Context, event outbox.Event
 	return err
 }
 
-func (s *OperationStore) IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
-	// Dummy for now
-	return false, nil
-}
-
-func (s *OperationStore) MarkEventProcessed(ctx context.Context, eventID string) error {
-	// Dummy for now
-	return nil
-}
-
 func (s *OperationStore) CheckIdempotencyStatus(ctx context.Context, tenantID types.TenantID, idempotencyKey string) (string, string, error) {
-	db := s.getTxOrPool(ctx)
 	var status, hash string
-	err := db.QueryRow(ctx, `
-		SELECT status, command_hash FROM platform.operation_ledger
-		WHERE tenant_id = $1 AND idempotency_key = $2
-	`, tenantID, idempotencyKey).Scan(&status, &hash)
+	err := s.RunInTransaction(ctx, func(txCtx context.Context) error {
+		if err := s.SetTenantContext(txCtx, tenantID); err != nil {
+			return err
+		}
+		tx := txCtx.Value(txKey{}).(pgx.Tx)
+		return tx.QueryRow(txCtx, `
+			SELECT status, command_hash FROM platform.operation_ledger
+			WHERE tenant_id = $1 AND idempotency_key = $2
+		`, tenantID, idempotencyKey).Scan(&status, &hash)
+	})
 	
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -96,36 +91,43 @@ func (s *OperationStore) CheckIdempotencyStatus(ctx context.Context, tenantID ty
 
 func (s *OperationStore) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error) {
 	newOpID := uuid.New().String()
-	db := s.getTxOrPool(ctx)
-
-	_, err := db.Exec(ctx, `
-		INSERT INTO platform.operation_ledger (operation_id, tenant_id, idempotency_key, command_hash, aggregate_id, status)
-		VALUES ($1, $2, $3, $4, '', 'pending')
-		ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
-	`, newOpID, tenantID, idempotencyKey, commandHash)
-	
-	if err != nil {
-		return "", "", "", err
-	}
-
 	leaseToken := uuid.New().String()
 	var opID, opStatus, opHash string
-	
-	err = db.QueryRow(ctx, `
-		UPDATE platform.operation_ledger
-		SET status = 'processing',
-			locked_at = $1,
-			locked_by = $2,
-			lease_token = $3,
-			attempt_count = attempt_count + 1,
-			updated_at = $1
-		WHERE tenant_id = $4
-		  AND idempotency_key = $5
-		  AND command_hash = $6
-		  AND status IN ('pending', 'retryable_failure')
-		  AND (locked_at IS NULL OR locked_at < $7)
-		RETURNING operation_id, status, command_hash
-	`, now, workerID, leaseToken, tenantID, idempotencyKey, commandHash, staleBefore).Scan(&opID, &opStatus, &opHash)
+
+	err := s.RunInTransaction(ctx, func(txCtx context.Context) error {
+		if err := s.SetTenantContext(txCtx, tenantID); err != nil {
+			return err
+		}
+		tx := txCtx.Value(txKey{}).(pgx.Tx)
+
+		_, err := tx.Exec(txCtx, `
+			INSERT INTO platform.operation_ledger (operation_id, tenant_id, idempotency_key, command_hash, aggregate_id, status)
+			VALUES ($1, $2, $3, $4, '', 'pending')
+			ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+		`, newOpID, tenantID, idempotencyKey, commandHash)
+		
+		if err != nil {
+			return err
+		}
+
+		err = tx.QueryRow(txCtx, `
+			UPDATE platform.operation_ledger
+			SET status = 'processing',
+				locked_at = $1,
+				locked_by = $2,
+				lease_token = $3,
+				attempt_count = attempt_count + 1,
+				updated_at = $1
+			WHERE tenant_id = $4
+			  AND idempotency_key = $5
+			  AND command_hash = $6
+			  AND status IN ('pending', 'retryable_failure')
+			  AND (locked_at IS NULL OR locked_at < $7)
+			RETURNING operation_id, status, command_hash
+		`, now, workerID, leaseToken, tenantID, idempotencyKey, commandHash, staleBefore).Scan(&opID, &opStatus, &opHash)
+
+		return err
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -134,7 +136,7 @@ func (s *OperationStore) AcquireCommandLease(ctx context.Context, tenantID types
 				return "", "", "", checkErr
 			}
 			if hash != commandHash {
-				return "", "conflict", "", errors.New("hash conflict")
+				return "", "conflict", "", ports.ErrIdempotencyHashConflict
 			}
 			return "", status, "", nil
 		}
@@ -145,12 +147,6 @@ func (s *OperationStore) AcquireCommandLease(ctx context.Context, tenantID types
 }
 
 func (s *OperationStore) UpdateOperationStatus(ctx context.Context, tenantID types.TenantID, operationID string, status string, lastError string, leaseToken string) error {
-	var lockedAt, lockedBy interface{}
-	if status != "completed" {
-		lockedAt = time.Now() // Or keep existing, but normally only completion clears it. Actually better not to touch locks unless completing.
-		// Wait, user said: SET status = 'completed', locked_at = NULL, locked_by = NULL
-	}
-
 	query := `
 		UPDATE platform.operation_ledger 
 		SET status = $1, last_error = $2, updated_at = NOW() 

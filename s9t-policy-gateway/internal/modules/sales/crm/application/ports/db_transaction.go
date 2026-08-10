@@ -10,6 +10,7 @@ import (
 )
 
 var ErrOperationNotFound = errors.New("operation not found")
+var ErrIdempotencyHashConflict = errors.New("idempotency key matches but command hash differs")
 
 // DBTransactionManager defines boundaries for local database operations and outbox saves
 type DBTransactionManager interface {
@@ -18,8 +19,6 @@ type DBTransactionManager interface {
 	
 	// Outbox
 	SaveOutboxEvent(ctx context.Context, event outbox.Event) error
-	IsEventProcessed(ctx context.Context, eventID string) (bool, error)
-	MarkEventProcessed(ctx context.Context, eventID string) error
 	
 	// Command Operation Lease and Reconciliation
 	CheckIdempotencyStatus(ctx context.Context, tenantID types.TenantID, idempotencyKey string) (status string, hash string, err error)

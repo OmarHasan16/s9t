@@ -73,15 +73,18 @@ func (m *RealDBManager) SaveOutboxEvent(ctx context.Context, event outbox.Event)
 	return err
 }
 
-func (m *RealDBManager) IsEventProcessed(ctx context.Context, eventID string) (bool, error) { return false, nil }
-func (m *RealDBManager) MarkEventProcessed(ctx context.Context, eventID string) error { return nil }
-
-func (m *RealDBManager) CheckIdempotencyStatus(ctx context.Context, tenantID types.TenantID, idempotencyKey string) (status string, hash string, err error) {
-	db := m.getTxOrPool(ctx)
-	err = db.QueryRow(ctx, `
-		SELECT status, command_hash FROM platform.operation_ledger
-		WHERE tenant_id = $1 AND idempotency_key = $2
-	`, tenantID, idempotencyKey).Scan(&status, &hash)
+func (m *RealDBManager) CheckIdempotencyStatus(ctx context.Context, tenantID types.TenantID, idempotencyKey string) (string, string, error) {
+	var status, hash string
+	err := m.RunInTransaction(ctx, func(txCtx context.Context) error {
+		if err := m.SetTenantContext(txCtx, tenantID); err != nil {
+			return err
+		}
+		tx := txCtx.Value(txKey{}).(pgx.Tx)
+		return tx.QueryRow(txCtx, `
+			SELECT status, command_hash FROM platform.operation_ledger
+			WHERE tenant_id = $1 AND idempotency_key = $2
+		`, tenantID, idempotencyKey).Scan(&status, &hash)
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", "", ports.ErrOperationNotFound
@@ -93,36 +96,43 @@ func (m *RealDBManager) CheckIdempotencyStatus(ctx context.Context, tenantID typ
 
 func (m *RealDBManager) AcquireCommandLease(ctx context.Context, tenantID types.TenantID, idempotencyKey string, commandHash string, workerID string, now time.Time, staleBefore time.Time) (string, string, string, error) {
 	newOpID := uuid.New().String()
-	db := m.getTxOrPool(ctx)
-
-	// Step 1: Attempt to create new operation if not exists
-	_, err := db.Exec(ctx, `
-		INSERT INTO platform.operation_ledger (operation_id, tenant_id, idempotency_key, command_hash, aggregate_id, status)
-		VALUES ($1, $2, $3, $4, '', 'pending')
-		ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
-	`, newOpID, tenantID, idempotencyKey, commandHash)
-	
-	if err != nil {
-		return "", "", "", err
-	}
-
 	leaseToken := uuid.New().String()
 	var opID, opStatus, opHash string
-	err = db.QueryRow(ctx, `
-		UPDATE platform.operation_ledger
-		SET status = 'processing',
-			locked_at = $1,
-			locked_by = $2,
-			lease_token = $3,
-			attempt_count = attempt_count + 1,
-			updated_at = $1
-		WHERE tenant_id = $4
-		  AND idempotency_key = $5
-		  AND command_hash = $6
-		  AND status IN ('pending', 'retryable_failure')
-		  AND (locked_at IS NULL OR locked_at < $7)
-		RETURNING operation_id, status, command_hash
-	`, now, workerID, leaseToken, tenantID, idempotencyKey, commandHash, staleBefore).Scan(&opID, &opStatus, &opHash)
+
+	err := m.RunInTransaction(ctx, func(txCtx context.Context) error {
+		if err := m.SetTenantContext(txCtx, tenantID); err != nil {
+			return err
+		}
+		tx := txCtx.Value(txKey{}).(pgx.Tx)
+
+		_, err := tx.Exec(txCtx, `
+			INSERT INTO platform.operation_ledger (operation_id, tenant_id, idempotency_key, command_hash, aggregate_id, status)
+			VALUES ($1, $2, $3, $4, '', 'pending')
+			ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+		`, newOpID, tenantID, idempotencyKey, commandHash)
+		
+		if err != nil {
+			return err
+		}
+
+		err = tx.QueryRow(txCtx, `
+			UPDATE platform.operation_ledger
+			SET status = 'processing',
+				locked_at = $1,
+				locked_by = $2,
+				lease_token = $3,
+				attempt_count = attempt_count + 1,
+				updated_at = $1
+			WHERE tenant_id = $4
+			  AND idempotency_key = $5
+			  AND command_hash = $6
+			  AND status IN ('pending', 'retryable_failure')
+			  AND (locked_at IS NULL OR locked_at < $7)
+			RETURNING operation_id, status, command_hash
+		`, now, workerID, leaseToken, tenantID, idempotencyKey, commandHash, staleBefore).Scan(&opID, &opStatus, &opHash)
+
+		return err
+	})
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -131,7 +141,7 @@ func (m *RealDBManager) AcquireCommandLease(ctx context.Context, tenantID types.
 				return "", "", "", checkErr
 			}
 			if hash != commandHash {
-				return "", "conflict", "", command.ErrIdempotencyHashConflict
+				return "", "conflict", "", ports.ErrIdempotencyHashConflict
 			}
 			return "", status, "", nil
 		}
@@ -142,11 +152,6 @@ func (m *RealDBManager) AcquireCommandLease(ctx context.Context, tenantID types.
 }
 
 func (m *RealDBManager) UpdateOperationStatus(ctx context.Context, tenantID types.TenantID, operationID string, status string, lastError string, leaseToken string) error {
-	var lockedAt, lockedBy interface{}
-	if status != "completed" {
-		lockedAt = time.Now() 
-	}
-
 	query := `
 		UPDATE platform.operation_ledger 
 		SET status = $1, last_error = $2, updated_at = NOW() 
@@ -263,7 +268,7 @@ func TestConcurrentCommandLeases_RealDB(t *testing.T) {
 			return 2, nil
 		},
 	}
-	handler := command.NewChangeDealStageHandler(policy.NewDealPolicy(), gw, txManager, &realClock{})
+	handler := command.NewChangeDealStageHandler(policy.NewDealPolicy(), gw, txManager, &realClock{}, 0)
 
 	var wg sync.WaitGroup
 	requestCount := 50
@@ -321,7 +326,7 @@ func TestTransactionAtomicity_And_RLS_RealDB(t *testing.T) {
 			return 2, nil
 		},
 	}
-	handler := command.NewChangeDealStageHandler(policy.NewDealPolicy(), gw, txManager, &realClock{})
+	handler := command.NewChangeDealStageHandler(policy.NewDealPolicy(), gw, txManager, &realClock{}, 0)
 
 	tenantA := types.TenantID("550e8400-e29b-41d4-a716-446655440000")
 	tenantB := types.TenantID("660e8400-e29b-41d4-a716-446655440000")
@@ -366,7 +371,7 @@ func TestReconciliation_DualWriteFailure_RealDB(t *testing.T) {
 			return 2, nil
 		},
 	}
-	handler := command.NewChangeDealStageHandler(policy.NewDealPolicy(), gw, txManager, &realClock{})
+	handler := command.NewChangeDealStageHandler(policy.NewDealPolicy(), gw, txManager, &realClock{}, 0)
 
 	tenantUUID := types.TenantID("550e8400-e29b-41d4-a716-446655440000")
 	ctx := middleware.WithActorID(middleware.WithTenantID(context.Background(), tenantUUID), "a1")
@@ -419,7 +424,11 @@ func TestLeaseFencing_RealDB(t *testing.T) {
 	// Verify completion cleared the lock
 	var status string
 	var lockedAt, lockedBy interface{}
-	err = pool.QueryRow(ctx, "SELECT status, locked_at, locked_by FROM platform.operation_ledger WHERE operation_id = $1", opID).Scan(&status, &lockedAt, &lockedBy)
+	tx, _ := pool.Begin(ctx)
+	tx.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", string(tenantA))
+	err = tx.QueryRow(ctx, "SELECT status, locked_at, locked_by FROM platform.operation_ledger WHERE operation_id = $1", opID).Scan(&status, &lockedAt, &lockedBy)
+	tx.Commit(ctx)
+	
 	assert.NoError(t, err)
 	assert.Equal(t, "completed", status)
 	assert.Nil(t, lockedAt)

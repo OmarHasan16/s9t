@@ -66,9 +66,6 @@ type FakeDBTransactionManager struct {
 	CapturedOpStatus                string
 }
 
-func (f *FakeDBTransactionManager) IsEventProcessed(ctx context.Context, eventID string) (bool, error) { return false, nil }
-func (f *FakeDBTransactionManager) MarkEventProcessed(ctx context.Context, eventID string) error { return nil }
-
 func (f *FakeDBTransactionManager) CheckIdempotencyStatus(ctx context.Context, tenantID types.TenantID, idempotencyKey string) (status string, hash string, err error) {
 	f.CheckIdempotencyStatusCallCount++
 	if f.CheckIdempotencyStatusFunc != nil {
@@ -127,7 +124,7 @@ func setupTest() (*policy.DealPolicy, *FakeCortezaCRMGateway, *FakeDBTransaction
 	gw := &FakeCortezaCRMGateway{}
 	tx := &FakeDBTransactionManager{}
 	clock := &FakeClock{fixedTime: time.Date(2026, 8, 10, 15, 0, 0, 0, time.UTC)}
-	handler := command.NewChangeDealStageHandler(p, gw, tx, clock)
+	handler := command.NewChangeDealStageHandler(p, gw, tx, clock, 0)
 	
 	ctx := middleware.WithTenantID(context.Background(), "tenant-1")
 	ctx = middleware.WithActorID(ctx, "actor-1")
