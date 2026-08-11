@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: s9t_user
+      POSTGRES_PASSWORD: s9t_password
+      POSTGRES_DB: s9t_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U s9t_user -d s9t_erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  corteza-server:
+    image: cortezaproject/corteza:latest
+    environment:
+      DB_DSN: postgres://s9t_user:s9t_password@postgres:5432/s9t_erp?sslmode=disable
+      HTTP_ADDR: 0.0.0.0:80
+    ports:
+      - "18080:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  s9t-policy-gateway:
+    build:
+      context: ./s9t-policy-gateway
+      dockerfile: Dockerfile
+    environment:
+      CORTEZA_BASE_URL: http://corteza-server:80
+      CORTEZA_CLIENT_ID: ${CORTEZA_CLIENT_ID:-system}
+      CORTEZA_CLIENT_SECRET: ${CORTEZA_CLIENT_SECRET:-secret}
+      DATABASE_URL: postgres://s9t_user:s9t_password@postgres:5432/s9t_erp?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-fallback-secret}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET is required}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  s9t-worker:
+    build:
+      context: ./s9t-policy-gateway
+      dockerfile: Dockerfile
+    command: ["worker"]
+    environment:
+      CORTEZA_BASE_URL: http://corteza-server:80
+      CORTEZA_CLIENT_ID: ${CORTEZA_CLIENT_ID:-system}
+      CORTEZA_CLIENT_SECRET: ${CORTEZA_CLIENT_SECRET:-secret}
+      DATABASE_URL: postgres://s9t_user:s9t_password@postgres:5432/s9t_erp?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-fallback-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  pgdata:
